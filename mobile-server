@@ -1,0 +1,39 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+case "${1:-}" in
+    start)
+        echo "Starting Mobile Server..."
+        php-fpm 2>/dev/null
+        mariadbd-safe >/dev/null 2>&1 &
+        sleep 2
+        nginx 2>/dev/null
+        echo "Mobile Server started"
+        ;;
+    stop)
+        echo "Stopping Mobile Server..."
+        pkill nginx 2>/dev/null || true
+        pkill php-fpm 2>/dev/null || true
+        pkill mariadbd 2>/dev/null || true
+        echo "Mobile Server stopped"
+        ;;
+    restart)
+        "$0" stop
+        sleep 1
+        "$0" start
+        ;;
+    status)
+        echo "Mobile Server Status"
+        echo "--------------------"
+        for svc in nginx php-fpm mariadbd; do
+            if pgrep -x "$svc" >/dev/null 2>&1; then
+                printf "  %-10s  Running\n" "$svc"
+            else
+                printf "  %-10s  Stopped\n" "$svc"
+            fi
+        done
+        ;;
+    *)
+        echo "Usage: mobile-server {start|stop|restart|status}"
+        exit 1
+        ;;
+esac

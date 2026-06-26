@@ -25,9 +25,22 @@ mkdir -p \
     ~/server/logs \
     ~/server/configs
 
+# File Manager (elFinder)
+mkdir -p ~/server/sites/default/public_html/elfinder
+curl -fsSL https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/elfinder/panel.php -o ~/server/sites/default/public_html/elfinder/panel.php
+curl -fsSL https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/elfinder/connector.php -o ~/server/sites/default/public_html/elfinder/connector.php
+ELFINDER_VER="2.1.69"
+curl -sL "https://github.com/Studio-42/elFinder/archive/refs/tags/$ELFINDER_VER.zip" -o /tmp/elfinder.zip
+unzip -qo /tmp/elfinder.zip -d /tmp/
+cp -r /tmp/elFinder-$ELFINDER_VER/php ~/server/sites/default/public_html/elfinder/
+rm -rf /tmp/elfinder.zip /tmp/elFinder-$ELFINDER_VER/
+
 curl -fsSL https://sayfullahsayeb.github.io/mobile-server/index.php -o ~/server/sites/default/public_html/index.php
 
 curl -fsSL https://sayfullahsayeb.github.io/mobile-server/control.php -o ~/server/sites/default/public_html/control.php
+
+curl -fsSL https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/mobile-server -o $PREFIX/bin/mobile-server
+chmod +x $PREFIX/bin/mobile-server
 
 PHP_SOCKET=$(grep '^listen =' $PREFIX/etc/php-fpm.d/www.conf | awk '{print $3}')
 
