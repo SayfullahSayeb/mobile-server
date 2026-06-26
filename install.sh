@@ -55,7 +55,7 @@ EOF
 
 [ -d "$PREFIX/var/lib/mysql/mysql" ] || mariadb-install-db --user=$(whoami)
 
-SSH_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
+SSH_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)
 printf "%s\n%s\n" "$SSH_PASS" "$SSH_PASS" | passwd >/dev/null
 
 pgrep sshd >/dev/null || sshd
