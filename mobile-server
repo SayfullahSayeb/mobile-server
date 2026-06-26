@@ -3,11 +3,15 @@
 case "${1:-}" in
     start)
         echo "Starting Mobile Server..."
-        php-fpm 2>/dev/null
+        php-fpm 2>/dev/null && echo "  PHP-FPM    Running" || echo "  PHP-FPM    Failed"
         mariadbd-safe >/dev/null 2>&1 &
         sleep 2
-        nginx 2>/dev/null
-        echo "Mobile Server started"
+        if pgrep -x mariadbd >/dev/null 2>&1; then echo "  MariaDB    Running"; else echo "  MariaDB    Failed"; fi
+        if nginx -t >/dev/null 2>&1; then
+            nginx && echo "  Nginx      Running" || echo "  Nginx      Failed"
+        else
+            echo "  Nginx      Config error — run 'nginx -t'"
+        fi
         ;;
     stop)
         echo "Stopping Mobile Server..."
@@ -33,52 +37,56 @@ case "${1:-}" in
         done
         ;;
     update)
-        BASE_URL="https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main"
         HOME_DIR="$HOME"
         TARGET_DIR="$HOME_DIR/server/sites/default/public_html"
-        LIB_DIR="$TARGET_DIR/lib"
+        TMP_DIR="$(mktemp -d 2>/dev/null || echo "/tmp/mobile-server-update")"
+        REPO_URL="https://github.com/SayfullahSayeb/mobile-server.git"
 
         echo "Updating Mobile Server from GitHub..."
         echo
 
-        FILES="index.php control.php install.sh
-lib/TunnelProvider.php lib/CloudflareTunnelProvider.php lib/TunnelManager.php
-elfinder/panel.php elfinder/connector.php"
+        rm -rf "$TMP_DIR" 2>/dev/null
+        if git clone --depth 1 "$REPO_URL" "$TMP_DIR" 2>/dev/null; then
+            echo "  Cloned repository."
 
-        ALL_OK=true
-        for f in $FILES; do
-            url="$BASE_URL/$f"
-            local="$TARGET_DIR/$f"
-            dir=$(dirname "$local")
-            if [ ! -d "$dir" ]; then
-                mkdir -p "$dir"
-            fi
-            if curl -fsSL "$url" -o "$local" 2>/dev/null; then
-                printf "  \xE2\x9C\x93 Updated %s\n" "$f"
+            # Install elfinder files (downloaded separately)
+            ELFINDER_VER="2.1.69"
+            ELDEST="$TARGET_DIR/elfinder/php"
+            rm -rf /tmp/elfinder.zip /tmp/elFinder-$ELFINDER_VER/ 2>/dev/null
+            curl -fsSL --retry 3 "https://github.com/Studio-42/elFinder/archive/refs/tags/$ELFINDER_VER.zip" -o /tmp/elfinder.zip 2>/dev/null
+            if [ -f /tmp/elfinder.zip ] && unzip -qo /tmp/elfinder.zip -d /tmp/ 2>/dev/null; then
+                rm -rf "$ELDEST" 2>/dev/null
+                cp -r "/tmp/elFinder-$ELFINDER_VER/php" "$ELDEST" 2>/dev/null
+                printf "  \xE2\x9C\x93 Updated elFinder library\n"
             else
-                ALL_OK=false
-                printf "  \xE2\x9C\x97 Failed %s\n" "$f"
+                printf "  [!] elFinder library download failed\n"
             fi
-        done
 
-        echo
-        echo "Updating CLI script..."
-        CLI_DEST="$PREFIX/bin/mobile-server"
-        if curl -fsSL "$BASE_URL/mobile-server" -o "$CLI_DEST.tmp" 2>/dev/null; then
-            chmod +x "$CLI_DEST.tmp"
-            mv "$CLI_DEST.tmp" "$CLI_DEST"
-            printf "  \xE2\x9C\x93 Updated CLI ($CLI_DEST)\n"
-        else
-            ALL_OK=false
-            printf "  \xE2\x9C\x97 Failed to update CLI\n"
-            rm -f "$CLI_DEST.tmp"
-        fi
+            # Copy all files from repo (skip .git)
+            for item in "$TMP_DIR"/* "$TMP_DIR"/.[!.]*; do
+                base="$(basename "$item")"
+                [ "$base" = ".git" ] || [ "$base" = "." ] || [ "$base" = ".." ] && continue
+                cp -r "$item" "$TARGET_DIR/" 2>/dev/null
+                printf "  \xE2\x9C\x93 Synced %s\n" "$base"
+            done
 
-        echo
-        if $ALL_OK; then
+            # Update CLI script
+            CLI_DEST="$PREFIX/bin/mobile-server"
+            if [ -f "$TMP_DIR/mobile-server" ]; then
+                cp "$TMP_DIR/mobile-server" "$CLI_DEST" 2>/dev/null
+                chmod +x "$CLI_DEST" 2>/dev/null
+                printf "  \xE2\x9C\x93 Updated CLI\n"
+            else
+                printf "  [!] Failed to update CLI\n"
+            fi
+
+            rm -rf "$TMP_DIR" 2>/dev/null
+            echo
             echo "Update completed successfully."
         else
-            echo "Update completed with errors."
+            echo "[!] Failed to clone repository. Check internet connection."
+            rm -rf "$TMP_DIR" 2>/dev/null
+            exit 1
         fi
         ;;
     *)

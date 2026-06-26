@@ -135,8 +135,9 @@ function getNextPort(): int {
 }
 
 function generateNginxBlock(string $domain, int $port, string $path): string {
+    if ($port < 1 || $port > 65535) return '';
     $real = realpath($path);
-    if (!$real) return '';
+    if (!$real || !is_dir($real)) return '';
     $phpSocket = PHP_SOCKET;
     return "server {\n"
         . "    listen $port;\n"
@@ -157,14 +158,30 @@ function rewriteNginxMainConfig(): bool {
     if (!is_file(NGINX_CONF)) return false;
     $conf = file_get_contents(NGINX_CONF);
     $includeLine = 'include ' . NGINX_SITES_DIR . '/*.conf;';
-    if (str_contains($conf, $includeLine)) return true;
-    $conf = str_replace('http {', "http {\n    $includeLine", $conf);
+    if (preg_match('/include\s+' . preg_quote(NGINX_SITES_DIR, '/') . '/', $conf)) return true;
+    $conf = preg_replace('/^http\s*\{/m', "http {\n    $includeLine", $conf, 1, $count);
+    if ($count === 0) return false;
     file_put_contents(NGINX_CONF, $conf);
     return true;
 }
 
 function restartNginx(): bool {
+    exec('nginx -t 2>&1', $raw, $rc);
+    if ($rc !== 0) {
+        error_log('nginx config test failed: ' . implode("\n", $raw));
+        return false;
+    }
     exec('pkill nginx 2>/dev/null; sleep 1; nginx 2>&1', $raw, $rc);
+    return $rc === 0;
+}
+
+function reloadNginx(): bool {
+    exec('nginx -t 2>&1', $raw, $rc);
+    if ($rc !== 0) {
+        error_log('nginx config test failed: ' . implode("\n", $raw));
+        return false;
+    }
+    exec('pkill -HUP nginx 2>/dev/null', $raw, $rc);
     return $rc === 0;
 }
 
@@ -247,41 +264,55 @@ if ($logged_in) {
                 if (is_dir($publicHtml)) {
                     $flash = ['error', "Site '$name' already exists"];
                 } else {
-                    @mkdir($publicHtml, 0755, true);
                     $port = getNextPort();
-                    $config = getSitesConfig();
-                    $config[$name] = [
-                        'domain' => $domain,
-                        'port' => $port,
-                        'path' => $publicHtml,
-                        'enabled' => true,
-                        'type' => $type,
-                        'created' => date('Y-m-d H:i:s')
-                    ];
-                    saveSitesConfig($config);
-                    if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
-                    $block = generateNginxBlock($domain, $port, $publicHtml);
-                    file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
-                    rewriteNginxMainConfig();
-                    $wpResult = [true, ''];
-                    if ($type === 'wordpress') {
-                        $wpUser = trim($_POST['wp_user'] ?? 'admin');
-                        $wpPass = trim($_POST['wp_pass'] ?? '');
-                        $wpEmail = trim($_POST['wp_email'] ?? 'admin@localhost.local');
-                        $wpTitle = trim($_POST['wp_title'] ?? 'My Site');
-                        if (!$wpPass || strlen($wpPass) < 6) {
-                            $flash = ['error', 'WordPress password must be at least 6 characters'];
-                        } else {
-                            $wpResult = installWordPress($publicHtml, $name, $wpUser, $wpPass, $wpEmail, $wpTitle);
-                        }
+                    if ($port === 0) {
+                        $flash = ['error', 'No available port (all 8081-8999 are in use)'];
                     } else {
-                        file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
-                    }
-                    restartNginx();
-                    if (!isset($flash)) {
-                        $url = "http://$domain:$port";
-                        $wpSuffix = $type === 'wordpress' ? ' (<a href=\'' . $url . '/wp-admin/install.php\' style=\'color:#3b82f6\'>Complete setup</a>)' : '';
-                        $flash = [$wpResult[0] ? 'success' : 'error', ($wpResult[0] ? ucfirst($type) : 'Static') . " site '$name' created — <a href='$url' target='_blank' style='color:#3b82f6'>$url</a>" . ($wpResult[0] ? $wpSuffix : '') . ($wpResult[0] ? '' : ($wpResult[1] ? '<br>' . $wpResult[1] : ''))];
+                        @mkdir($publicHtml, 0755, true);
+                        $block = generateNginxBlock($domain, $port, $publicHtml);
+                        if ($block === '') {
+                            $flash = ['error', "Failed to generate nginx config for '$name' — check directory permissions"];
+                        } else {
+                            $config = getSitesConfig();
+                            $config[$name] = [
+                                'domain' => $domain,
+                                'port' => $port,
+                                'path' => $publicHtml,
+                                'enabled' => true,
+                                'type' => $type,
+                                'created' => date('Y-m-d H:i:s')
+                            ];
+                            saveSitesConfig($config);
+                            if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
+                            file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
+                            rewriteNginxMainConfig();
+                            $wpResult = [true, ''];
+                            if ($type === 'wordpress') {
+                                $wpUser = trim($_POST['wp_user'] ?? 'admin');
+                                $wpPass = trim($_POST['wp_pass'] ?? '');
+                                $wpEmail = trim($_POST['wp_email'] ?? 'admin@localhost.local');
+                                $wpTitle = trim($_POST['wp_title'] ?? 'My Site');
+                                if (!$wpPass || strlen($wpPass) < 6) {
+                                    $flash = ['error', 'WordPress password must be at least 6 characters'];
+                                } else {
+                                    $wpResult = installWordPress($publicHtml, $name, $wpUser, $wpPass, $wpEmail, $wpTitle);
+                                }
+                            } else {
+                                file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
+                            }
+                            $restartOk = reloadNginx();
+                            if (!$restartOk) {
+                                $restartOk = restartNginx();
+                            }
+                            if (!$restartOk) {
+                                $flash = ['error', "Site '$name' created but nginx failed to restart — run 'nginx -t' in Termux to diagnose"];
+                            }
+                            if (!isset($flash)) {
+                                $url = "http://$domain:$port";
+                                $wpSuffix = $type === 'wordpress' ? ' (<a href=\'' . $url . '/wp-admin/install.php\' style=\'color:#3b82f6\'>Complete setup</a>)' : '';
+                                $flash = [$wpResult[0] ? 'success' : 'error', ($wpResult[0] ? ucfirst($type) : 'Static') . " site '$name' created — <a href='$url' target='_blank' style='color:#3b82f6'>$url</a>" . ($wpResult[0] ? $wpSuffix : '') . ($wpResult[0] ? '' : ($wpResult[1] ? '<br>' . $wpResult[1] : ''))];
+                            }
+                        }
                     }
                 }
             }
@@ -298,7 +329,8 @@ if ($logged_in) {
                     unset($config[$name]);
                     saveSitesConfig($config);
                     @unlink(NGINX_SITES_DIR . '/' . $name . '.conf');
-                    restartNginx();
+                    $restartOk = reloadNginx();
+                    if (!$restartOk) { $restartOk = restartNginx(); }
                     $flash = [$rc === 0 ? 'success' : 'error', $rc === 0 ? "Site '$name' deleted" : "Failed to delete '$name'"];
                 } else {
                     $flash = ['error', "Site '$name' not found"];
@@ -312,12 +344,20 @@ if ($logged_in) {
                 saveSitesConfig($config);
                 $target = NGINX_SITES_DIR . '/' . $name . '.conf';
                 if ($config[$name]['enabled']) {
-                    file_put_contents($target, generateNginxBlock($config[$name]['domain'], $config[$name]['port'], $config[$name]['path']));
+                    $block = generateNginxBlock($config[$name]['domain'], $config[$name]['port'], $config[$name]['path']);
+                    if ($block === '') {
+                        $flash = ['error', "Failed to generate config for '$name' — path missing"];
+                    } else {
+                        file_put_contents($target, $block);
+                    }
                 } else {
                     @unlink($target);
                 }
-                restartNginx();
-                $flash = ['success', "Site '$name' " . ($config[$name]['enabled'] ? 'enabled' : 'disabled')];
+                if (!isset($flash)) {
+                    $restartOk = reloadNginx();
+                    if (!$restartOk) { $restartOk = restartNginx(); }
+                    $flash = ['success', "Site '$name' " . ($config[$name]['enabled'] ? 'enabled' : 'disabled')];
+                }
             } else {
                 $flash = ['error', "Site '$name' not found in config"];
             }
@@ -331,9 +371,15 @@ if ($logged_in) {
                 $config[$name]['type'] = $type;
                 saveSitesConfig($config);
                 $target = NGINX_SITES_DIR . '/' . $name . '.conf';
-                file_put_contents($target, generateNginxBlock($domain, $config[$name]['port'], $config[$name]['path']));
-                restartNginx();
-                $flash = ['success', "Site '$name' updated"];
+                $block = generateNginxBlock($domain, $config[$name]['port'], $config[$name]['path']);
+                if ($block === '') {
+                    $flash = ['error', "Failed to generate config for '$name' — path missing"];
+                } else {
+                    file_put_contents($target, $block);
+                    $restartOk = reloadNginx();
+                    if (!$restartOk) { $restartOk = restartNginx(); }
+                    $flash = ['success', "Site '$name' updated"];
+                }
             } else {
                 $flash = ['error', "Site '$name' not found"];
             }
@@ -487,48 +533,36 @@ if ($logged_in) {
                 $flash = ['success', 'Active tunnel set to: ' . htmlspecialchars($name)];
             }
         } elseif ($action === 'update_system') {
-            $base_url = 'https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main';
             $target_dir = __DIR__;
-            $lib_dir = $target_dir . '/lib';
-            if (!is_dir($lib_dir)) @mkdir($lib_dir, 0755, true);
-            $home_server = HOME_DIR . '/server';
-            $elfinder_dir = $target_dir . '/elfinder';
-            if (!is_dir($elfinder_dir)) @mkdir($elfinder_dir, 0755, true);
-            $panel_dir = $target_dir . '/panel';
-            if (!is_dir($panel_dir)) @mkdir($panel_dir, 0755, true);
-            $files = [
-                'index.php' => $target_dir . '/index.php',
-                'control.php' => $target_dir . '/control.php',
-                'install.sh' => $home_server . '/install.sh',
-                'lib/TunnelProvider.php' => $lib_dir . '/TunnelProvider.php',
-                'lib/CloudflareTunnelProvider.php' => $lib_dir . '/CloudflareTunnelProvider.php',
-                'lib/TunnelManager.php' => $lib_dir . '/TunnelManager.php',
-                'elfinder/panel.php' => $elfinder_dir . '/panel.php',
-                'elfinder/connector.php' => $elfinder_dir . '/connector.php',
-                'panel/header.php' => $panel_dir . '/header.php',
-                'panel/dashboard.php' => $panel_dir . '/dashboard.php',
-                'panel/cloudflare.php' => $panel_dir . '/cloudflare.php',
-                'panel/sites.php' => $panel_dir . '/sites.php',
-                'panel/wordpress.php' => $panel_dir . '/wordpress.php',
-                'panel/update.php' => $panel_dir . '/update.php',
-                'panel/login.php' => $panel_dir . '/login.php',
-                'panel/footer.php' => $panel_dir . '/footer.php',
-                'panel/control.css' => $panel_dir . '/control.css',
-                'panel/update_stream.php' => $panel_dir . '/update_stream.php',
-            ];
+            $tmp_dir = '/tmp/mobile-server-update-' . bin2hex(random_bytes(4));
+            $repo_url = 'https://github.com/SayfullahSayeb/mobile-server.git';
+            @mkdir($tmp_dir, 0755, true);
+            exec("git clone --depth 1 " . escapeshellarg($repo_url) . " " . escapeshellarg($tmp_dir) . " 2>&1", $raw, $rc);
             $results = [];
             $all_ok = true;
-            foreach ($files as $remote => $local) {
-                $dir = dirname($local);
-                if (!is_dir($dir)) @mkdir($dir, 0755, true);
-                $url = $base_url . '/' . $remote;
-                exec("curl -sL " . escapeshellarg($url) . " -o " . escapeshellarg($local) . " 2>&1", $raw, $rc);
-                if ($rc === 0) {
-                    $results[] = '<i class="fas fa-check"></i> Updated ' . $remote;
-                } else {
-                    $all_ok = false;
-                    $results[] = '<i class="fas fa-times"></i> Failed to download ' . $remote;
+            if ($rc === 0) {
+                $results[] = '<i class="fas fa-check"></i> Repository cloned';
+                $iterator = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($tmp_dir, RecursiveDirectoryIterator::SKIP_DOTS)
+                );
+                foreach ($iterator as $file) {
+                    $relPath = substr($file->getPathname(), strlen($tmp_dir) + 1);
+                    if (str_starts_with($relPath, '.git') || str_starts_with($relPath, '.git/')) continue;
+                    if ($file->isDir()) continue;
+                    $dest = $target_dir . '/' . $relPath;
+                    $destDir = dirname($dest);
+                    if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+                    if (@copy($file->getPathname(), $dest)) {
+                        $results[] = '<i class="fas fa-check"></i> Updated ' . $relPath;
+                    } else {
+                        $all_ok = false;
+                        $results[] = '<i class="fas fa-times"></i> Failed to copy ' . $relPath;
+                    }
                 }
+                exec("rm -rf " . escapeshellarg($tmp_dir) . " 2>&1");
+            } else {
+                $all_ok = false;
+                $results[] = '<i class="fas fa-times"></i> Failed to clone repository: ' . implode(' ', $raw);
             }
             $flash_type = $all_ok ? 'success' : 'error';
             $flash_msg = 'Update ' . ($all_ok ? 'completed successfully!' : 'completed with errors.') . '<br>' . implode('<br>', $results);
