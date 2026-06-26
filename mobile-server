@@ -32,8 +32,57 @@ case "${1:-}" in
             fi
         done
         ;;
+    update)
+        BASE_URL="https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main"
+        HOME_DIR="$HOME"
+        TARGET_DIR="$HOME_DIR/server/sites/default/public_html"
+        LIB_DIR="$TARGET_DIR/lib"
+
+        echo "Updating Mobile Server from GitHub..."
+        echo
+
+        FILES="index.php control.php install.sh
+lib/TunnelProvider.php lib/CloudflareTunnelProvider.php lib/TunnelManager.php
+elfinder/panel.php elfinder/connector.php"
+
+        ALL_OK=true
+        for f in $FILES; do
+            url="$BASE_URL/$f"
+            local="$TARGET_DIR/$f"
+            dir=$(dirname "$local")
+            if [ ! -d "$dir" ]; then
+                mkdir -p "$dir"
+            fi
+            if curl -fsSL "$url" -o "$local" 2>/dev/null; then
+                printf "  \xE2\x9C\x93 Updated %s\n" "$f"
+            else
+                ALL_OK=false
+                printf "  \xE2\x9C\x97 Failed %s\n" "$f"
+            fi
+        done
+
+        echo
+        echo "Updating CLI script..."
+        CLI_DEST="$PREFIX/bin/mobile-server"
+        if curl -fsSL "$BASE_URL/mobile-server" -o "$CLI_DEST.tmp" 2>/dev/null; then
+            chmod +x "$CLI_DEST.tmp"
+            mv "$CLI_DEST.tmp" "$CLI_DEST"
+            printf "  \xE2\x9C\x93 Updated CLI ($CLI_DEST)\n"
+        else
+            ALL_OK=false
+            printf "  \xE2\x9C\x97 Failed to update CLI\n"
+            rm -f "$CLI_DEST.tmp"
+        fi
+
+        echo
+        if $ALL_OK; then
+            echo "Update completed successfully."
+        else
+            echo "Update completed with errors."
+        fi
+        ;;
     *)
-        echo "Usage: mobile-server {start|stop|restart|status}"
+        echo "Usage: mobile-server {start|stop|restart|status|update}"
         exit 1
         ;;
 esac

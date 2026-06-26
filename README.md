@@ -26,5 +26,6 @@ bash <(curl -fsSL https://sayfullahsayeb.github.io/mobile-server/install.sh)
 | `mobile-server stop` | Stop all services |
 | `mobile-server restart` | Restart all services |
 | `mobile-server status` | Check running status |
+| `mobile-server update` | Update system from GitHub |
 
 Open `http://<device-ip>:8080` for the status dashboard, or `http://<device-ip>:8080/control.php` (password: `admin`) for the full control panel.

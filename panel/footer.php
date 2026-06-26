@@ -14,7 +14,7 @@ function copyUrl(text) {
     });
 }
 </script>
-<footer>Mobile Server — Nginx &bull; PHP-FPM &bull; MariaDB</footer>
+<footer class="tc tm ts" style="padding:12px 0 4px">Mobile Server — Nginx &bull; PHP-FPM &bull; MariaDB</footer>
 </div>
 </body>
 </html>
