@@ -30,29 +30,7 @@
 <?php endforeach; ?>
 </div>
 
-<div class="sec">
-  <div class="df jb ac fw g2">
-    <div class="df ac g3">
-      <div class="sc-ic" style="background:rgba(34,197,94,.12);color:#22c55e"><i class="fas fa-lock"></i></div>
-      <div class="st" style="margin:0">HTTPS</div>
-      <span class="bdg <?= $https_enabled ? 'on' : 'off' ?>"><span class="dt"></span><?= $https_enabled ? 'Enabled' : 'Disabled' ?></span>
-    </div>
-    <div class="df ac g2 fw">
-      <?php if ($https_enabled): ?>
-      <a href="https://<?= htmlspecialchars($ip_addr) ?>:8443" target="_blank" class="btn btn-p btn-s"><i class="fas fa-external-link-alt"></i> Open</a>
-      <form method="post" style="display:inline"><?= csrf() ?><input type="hidden" name="action" value="disable_https"><button type="submit" class="btn btn-d btn-s" onclick="return confirm('Disable HTTPS?')">Disable</button></form>
-      <?php else: ?>
-      <form method="post" style="display:inline"><?= csrf() ?><input type="hidden" name="action" value="setup_https"><button type="submit" class="btn btn-p btn-s"><i class="fas fa-lock"></i> Enable HTTPS</button></form>
-      <?php endif; ?>
-    </div>
-  </div>
-  <?php if ($https_enabled): ?>
-  <div class="ig" style="margin-top:10px;margin-bottom:0">
-    <div class="ii"><div class="l">HTTPS URL</div><div class="v"><a href="https://<?= htmlspecialchars($ip_addr) ?>:8443" target="_blank" style="color:var(--blue)">https://<?= htmlspecialchars($ip_addr) ?>:8443</a></div></div>
-    <div class="ii"><div class="l">Certificate</div><div class="v" style="color:var(--text2)">Self-signed (10 year)</div></div>
-  </div>
-  <?php endif; ?>
-</div>
+
 
 <?php if ($tunnelInstalled && $tunnelAuthenticated && $tunnelManager->hasActiveTunnel()): $ts = $tunnelStatus; ?>
 <div class="sec">

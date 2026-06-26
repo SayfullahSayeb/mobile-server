@@ -1,6 +1,7 @@
 <?php
 $config = getSitesConfig();
 $allSites = [];
+$seen = [];
 $dirs = glob(SITES_DIR . '/*', GLOB_ONLYDIR);
 $exclude = ['default', 'filemanager', 'lib', 'panel'];
 if ($dirs) {
@@ -9,6 +10,7 @@ if ($dirs) {
         if (in_array($name, $exclude)) continue;
         $publicHtml = $d . '/public_html';
         if (is_dir($publicHtml)) {
+            $seen[$name] = true;
             $allSites[$name] = [
                 'name' => $name,
                 'domain' => $config[$name]['domain'] ?? ($name . '.test'),
@@ -19,6 +21,20 @@ if ($dirs) {
                 'created' => $config[$name]['created'] ?? ''
             ];
         }
+    }
+}
+// Include sites from config even if their directories are missing
+foreach ($config as $name => $site) {
+    if (!isset($seen[$name])) {
+        $allSites[$name] = [
+            'name' => $name,
+            'domain' => $site['domain'] ?? ($name . '.test'),
+            'port' => $site['port'] ?? 0,
+            'path' => $site['path'] ?? '',
+            'enabled' => $site['enabled'] ?? true,
+            'type' => $site['type'] ?? 'static',
+            'created' => $site['created'] ?? ''
+        ];
     }
 }
 ksort($allSites);
@@ -129,8 +145,6 @@ ksort($allSites);
       <?= csrf() ?>
       <input type="hidden" name="action" id="formAction" value="create_site">
       <input type="hidden" name="site_name_orig" id="siteNameOrig" value="">
-      <input type="text" name="site_name" id="siteName" class="inp" placeholder="Site name (e.g. myapp)" required pattern="[a-z0-9_-]+" title="Letters, numbers, hyphens, underscores only" oninput="autoFillTitle()">
-      <input type="hidden" name="site_domain" id="siteDomain" value="">
       <div class="st2" style="margin:0 0 8px">Site Type</div>
       <div class="df ac g3 mb1" id="siteTypeGroup">
         <label class="rl" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.08);border-radius:var(--rs);transition:all .15s">
@@ -142,9 +156,10 @@ ksort($allSites);
           <span>WordPress Site</span>
         </label>
       </div>
+      <input type="text" name="site_name" id="siteName" class="inp" placeholder="Site name (e.g. myapp)" required pattern="[a-z0-9_-]+" title="Letters, numbers, hyphens, underscores only">
+      <input type="hidden" name="site_domain" id="siteDomain" value="">
       <div id="wpFields" class="wp-fields" style="display:none">
         <div class="st2" style="margin:6px 0 10px">WordPress Configuration</div>
-        <input type="text" name="wp_title" id="wpTitle" class="inp" placeholder="Site title (e.g. My Blog)">
         <div class="fr2">
           <input type="text" name="wp_user" id="wpUser" class="inp" placeholder="Admin username" value="admin">
           <input type="password" name="wp_pass" id="wpPass" class="inp" placeholder="Admin password">
@@ -213,6 +228,7 @@ function closeModal() {
   document.getElementById('submitBtn').textContent = 'Create Site';
   document.getElementById('siteName').disabled = false;
   document.getElementById('siteNameOrig').value = '';
+  document.querySelector('input[name="site_type"][value="static"]').checked = true;
 }
 function showDeleteModal(name) {
   document.getElementById('deleteSiteName').value = name;
@@ -222,13 +238,6 @@ function showDeleteModal(name) {
 }
 function closeDeleteModal() {
   document.getElementById('deleteModal').classList.remove('show');
-}
-function autoFillTitle() {
-  var name = document.getElementById('siteName').value;
-  var title = document.getElementById('wpTitle');
-  if (title.value === '') {
-    title.value = name.replace(/[-_]/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
-  }
 }
 function editSite(name, domain, type) {
   document.getElementById('formAction').value = 'edit_site';

@@ -115,19 +115,25 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
     $db_name = 'wp_' . str_replace('-', '_', $siteName);
     exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
     exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
+    exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
     exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
     $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
-    if ($wp_config) {
-        $wp_config = str_replace(
-            ["'database_name_here'", "'username_here'", "'password_here'"],
-            ["'$db_name'", "'$db_user'", "'$db_pass'"],
-            $wp_config
-        );
-        foreach (['AUTH_KEY','SECURE_AUTH_KEY','LOGGED_IN_KEY','NONCE_KEY','AUTH_SALT','SECURE_AUTH_SALT','LOGGED_IN_SALT','NONCE_SALT'] as $key) {
-            $val = bin2hex(random_bytes(16));
-            $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
-        }
-        file_put_contents($sitePath . '/wp-config.php', $wp_config);
+    if (!$wp_config) {
+        @unlink($zip);
+        return [false, 'WordPress files missing after extraction'];
+    }
+    $wp_config = str_replace(
+        ["'database_name_here'", "'username_here'", "'password_here'"],
+        ["'$db_name'", "'$db_user'", "'$db_pass'"],
+        $wp_config
+    );
+    foreach (['AUTH_KEY','SECURE_AUTH_KEY','LOGGED_IN_KEY','NONCE_KEY','AUTH_SALT','SECURE_AUTH_SALT','LOGGED_IN_SALT','NONCE_SALT'] as $key) {
+        $val = bin2hex(random_bytes(16));
+        $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
+    }
+    if (file_put_contents($sitePath . '/wp-config.php', $wp_config) === false) {
+        @unlink($zip);
+        return [false, 'Failed to write wp-config.php'];
     }
     @chmod($sitePath, 0755);
     @unlink($zip);
@@ -343,7 +349,7 @@ if ($logged_in) {
                                 $wpUser = trim($_POST['wp_user'] ?? 'admin');
                                 $wpPass = trim($_POST['wp_pass'] ?? '');
                                 $wpEmail = trim($_POST['wp_email'] ?? 'admin@localhost.local');
-                                $wpTitle = trim($_POST['wp_title'] ?? 'My Site');
+                                $wpTitle = ucwords(str_replace(['-', '_'], ' ', $name));
                                 if (!$wpPass || strlen($wpPass) < 6) {
                                     $flash = ['error', 'WordPress password must be at least 6 characters'];
                                 } else {
@@ -359,8 +365,9 @@ if ($logged_in) {
                             }
                             if (!isset($flash)) {
                                 $url = "http://$domain:$port";
-                                $wpSuffix = $type === 'wordpress' ? ' (<a href=\'' . $url . '/wp-admin/install.php\' style=\'color:#3b82f6\'>Complete setup</a>)' : '';
-                                $flash = [$wpResult[0] ? 'success' : 'error', ($wpResult[0] ? ucfirst($type) : 'Static') . " site '$name' created — <a href='$url' target='_blank' style='color:#3b82f6'>$url</a>" . ($wpResult[0] ? $wpSuffix : '') . ($wpResult[0] ? '' : ($wpResult[1] ? '<br>' . $wpResult[1] : ''))];
+                                $label = ucfirst($type);
+                                $wpSuffix = $wpResult[0] && $type === 'wordpress' ? ' (<a href=\'' . $url . '/wp-admin/install.php\' style=\'color:#3b82f6\'>Complete setup</a>)' : '';
+                                $flash = [$wpResult[0] ? 'success' : 'error', "$label site '$name' created — <a href='$url' target='_blank' style='color:#3b82f6'>$url</a>" . $wpSuffix . ($wpResult[0] ? '' : ($wpResult[1] ? '<br>' . $wpResult[1] : ''))];
                                 panelLog("Created $type site '$name' at $domain:$port");
                             }
                         }
