@@ -247,8 +247,31 @@ if (isset($_GET['logout'])) {
 
 $tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? 'dashboard');
 
+// Detect device IP early (needed before action handling)
+@exec("ip -4 -o addr show wlan0 2>/dev/null | awk '{print \$4}' | cut -d/ -f1", $ip_out, $ip_rc);
+$ip_addr = ($ip_rc === 0 && !empty($ip_out)) ? $ip_out[0] : (trim(@shell_exec('hostname -I 2>/dev/null') ?: ''));
+if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP) || $ip_addr === '127.0.0.1') {
+    $ip_addr = @trim(shell_exec("ip route get 1 2>/dev/null | awk '{print $NF; exit}'"));
+}
+if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP) || $ip_addr === '127.0.0.1') {
+    $ip_addr = @trim(shell_exec("ifconfig 2>/dev/null | grep -E 'inet ' | grep -v 127.0.0.1 | awk '{print \$2}'"));
+}
+if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP) || $ip_addr === '127.0.0.1') {
+    $ip_addr = gethostbyname(gethostname());
+}
+if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP)) {
+    $ip_addr = 'localhost';
+}
+
 if ($logged_in) {
     $action = $_POST['action'] ?? '';
+
+    // Handle flash messages from previous redirect
+    $flash = null;
+    if (isset($_SESSION['_flash'])) {
+        $flash = $_SESSION['_flash'];
+        unset($_SESSION['_flash']);
+    }
 
     if ($action && $_SERVER['REQUEST_METHOD'] === 'POST') {
         verifyCsrfToken();
@@ -342,24 +365,29 @@ if ($logged_in) {
             }
         } elseif ($action === 'delete_site') {
             $name = trim($_POST['site_name'] ?? '');
+            $deleteFiles = !empty($_POST['delete_files']);
             if ($name && preg_match('/^[a-z0-9_-]+$/', $name)) {
+                $config = getSitesConfig();
+                unset($config[$name]);
+                saveSitesConfig($config);
+                @unlink(NGINX_SITES_DIR . '/' . $name . '.conf');
                 $publicHtml = SITES_DIR . '/' . $name . '/public_html';
                 $legacy = DEFAULT_SITE_DIR . '/' . $name;
                 $target = is_dir($publicHtml) ? $publicHtml : (is_dir($legacy) ? $legacy : null);
-                if ($target) {
+                if ($target && $deleteFiles) {
                     $fullPath = dirname($target) === $publicHtml ? dirname($target) : $target;
                     exec("rm -rf " . escapeshellarg($fullPath), $raw, $rc);
-                    $config = getSitesConfig();
-                    unset($config[$name]);
-                    saveSitesConfig($config);
-                    @unlink(NGINX_SITES_DIR . '/' . $name . '.conf');
-                    $restartOk = reloadNginx();
-                    if (!$restartOk) { $restartOk = restartNginx(); }
-                    $flash = [$rc === 0 ? 'success' : 'error', $rc === 0 ? "Site '$name' deleted" : "Failed to delete '$name'"];
-                    panelLog("Deleted site '$name': " . ($rc === 0 ? 'done' : 'failed'));
                 } else {
-                    $flash = ['error', "Site '$name' not found"];
+                    $rc = 0;
                 }
+                $restartOk = reloadNginx();
+                if (!$restartOk) { $restartOk = restartNginx(); }
+                $msg = "Site '$name' deleted" . ($deleteFiles ? '' : ' (config only, files kept)');
+                $flash = [$rc === 0 ? 'success' : 'error', $rc === 0 ? $msg : "Failed to delete '$name'"];
+                panelLog("Deleted site '$name'" . ($deleteFiles ? '' : ' (kept files)'));
+            } else {
+                $flash = ['error', "Invalid site name"];
+            }
             }
         } elseif ($action === 'toggle_site') {
             $name = trim($_POST['site_name'] ?? '');
@@ -621,6 +649,9 @@ if ($logged_in) {
             }
         }
         if (true) {
+            if (isset($flash)) {
+                $_SESSION['_flash'] = $flash;
+            }
             header('Location: ?tab=' . urlencode($tab));
             exit;
         }
@@ -637,8 +668,6 @@ if ($logged_in) {
     $uptime     = trim(@shell_exec('uptime -p 2>/dev/null') ?: 'N/A');
     $php_ver    = phpversion();
     $server_time = date('Y-m-d H:i:s');
-    @exec("ip -4 -o addr show wlan0 2>/dev/null | awk '{print \$4}' | cut -d/ -f1", $ip_out, $ip_rc);
-    $ip_addr = ($ip_rc === 0 && !empty($ip_out)) ? $ip_out[0] : (trim(@shell_exec('hostname -I 2>/dev/null') ?: 'N/A'));
 
     $tunnelManager->checkAutoStart();
 

@@ -52,7 +52,7 @@ ksort($allSites);
         <td class="td-name"><?= htmlspecialchars($name) ?></td>
         <td>
           <?php if (!empty($site['port'])): ?>
-          <a href="http://<?= htmlspecialchars($site['domain'] ?: $ip_addr) ?>:<?= $site['port'] ?>" target="_blank" class="sd"><?= htmlspecialchars($site['domain'] ?: $ip_addr) ?>:<?= $site['port'] ?></a>
+          <a href="http://<?= htmlspecialchars($ip_addr) ?>:<?= $site['port'] ?>" target="_blank" class="sd"><?= htmlspecialchars($ip_addr) ?>:<?= $site['port'] ?></a>
           <?php else: ?>
           <span class="tm ts">/<?= htmlspecialchars($name) ?></span>
           <?php endif; ?>
@@ -67,12 +67,7 @@ ksort($allSites);
             <button type="submit" class="btn btn-s <?= $site['enabled'] ? 'btn-w' : 'btn-o' ?>" title="<?= $site['enabled'] ? 'Disable' : 'Enable' ?>"><i class="fas <?= $site['enabled'] ? 'fa-pause' : 'fa-play' ?>"></i></button>
           </form>
           <button class="btn btn-s btn-w" onclick="editSite('<?= htmlspecialchars($name, ENT_QUOTES) ?>', '<?= htmlspecialchars($site['domain'], ENT_QUOTES) ?>', '<?= $site['type'] ?>')" title="Edit"><i class="fas fa-edit"></i></button>
-          <form method="post" style="display:inline" onsubmit="return confirm('Delete site &#39;<?= htmlspecialchars($name) ?>&#39; and all its files?')">
-            <?= csrf() ?>
-            <input type="hidden" name="action" value="delete_site">
-            <input type="hidden" name="site_name" value="<?= htmlspecialchars($name) ?>">
-            <button type="submit" class="btn btn-s btn-d" title="Delete"><i class="fas fa-trash-alt"></i></button>
-          </form>
+          <button type="button" class="btn btn-s btn-d" title="Delete" onclick="showDeleteModal('<?= htmlspecialchars($name, ENT_QUOTES) ?>')"><i class="fas fa-trash-alt"></i></button>
         </td>
       </tr>
       <?php endforeach; ?>
@@ -164,6 +159,30 @@ ksort($allSites);
   </div>
 </div>
 
+<div id="deleteModal" class="modal">
+  <div class="modal-bg" onclick="closeDeleteModal()"></div>
+  <div class="modal-content" style="max-width:400px">
+    <div class="modal-header">
+      <span class="modal-title">Delete Site</span>
+      <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
+    </div>
+    <form method="post" id="deleteForm">
+      <?= csrf() ?>
+      <input type="hidden" name="action" value="delete_site">
+      <input type="hidden" name="site_name" id="deleteSiteName" value="">
+      <p style="margin:0 0 12px;font-size:14px;color:var(--text2)" id="deleteSiteLabel"></p>
+      <label class="rl" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:8px 10px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.08);border-radius:var(--rs);transition:all .15s">
+        <input type="checkbox" name="delete_files" value="1" checked id="deleteFilesCheck" style="accent-color:var(--blue);width:15px;height:15px;cursor:pointer">
+        <span>Also delete site files (irreversible)</span>
+      </label>
+      <div class="modal-footer" style="margin-top:14px">
+        <button type="button" class="btn btn-d" onclick="closeDeleteModal()">Cancel</button>
+        <button type="submit" class="btn btn-d" style="background:var(--red)">Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 function toggleWpFields() {
   var type = document.querySelector('input[name="site_type"]:checked').value;
@@ -180,6 +199,15 @@ function closeModal() {
   document.getElementById('submitBtn').textContent = 'Create Site';
   document.getElementById('siteName').disabled = false;
   document.getElementById('siteNameOrig').value = '';
+}
+function showDeleteModal(name) {
+  document.getElementById('deleteSiteName').value = name;
+  document.getElementById('deleteSiteLabel').textContent = 'Delete "' + name + '"?';
+  document.getElementById('deleteFilesCheck').checked = true;
+  document.getElementById('deleteModal').classList.add('show');
+}
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('show');
 }
 function editSite(name, domain, type) {
   document.getElementById('formAction').value = 'edit_site';
