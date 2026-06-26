@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+putenv('PATH=/data/data/com.termux/files/usr/bin:' . getenv('PATH'));
+
 session_start();
 
 if (empty($_SESSION['authenticated'])) {

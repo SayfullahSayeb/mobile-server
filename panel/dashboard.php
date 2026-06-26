@@ -120,9 +120,9 @@ function showUpdateModal() {
     log.scrollTop = log.scrollHeight;
   }
 
-  addLine('$ mobile-server update');
+  addLine('$ ~/mobile-server/mobile-server update');
 
-  sshExec('mobile-server update 2>&1').then(function(r) {
+  sshExec('cd ~/mobile-server && bash mobile-server update 2>&1').then(function(r) {
     addLine(r.output);
     document.getElementById('updateBtn').disabled = false;
     document.getElementById('updateFooter').style.display = 'flex';
