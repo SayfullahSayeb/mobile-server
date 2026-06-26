@@ -4,24 +4,8 @@ set -e
 
 echo "Installing Mobile Server..."
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 pkg update -y
 pkg upgrade -y
-
-
 
 pkg install -y \
 openssh \
@@ -38,54 +22,7 @@ tar
 
 mkdir -p ~/server/sites/default/public_html ~/server/backups ~/server/logs ~/server/configs
 
-
-
-
-
 cat > ~/server/sites/default/public_html/index.php <<'EOF'
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 <?php
 echo "<h1>🎉 Mobile Server</h1>";
 echo "<p>Installation successful.</p>";
@@ -93,8 +30,6 @@ echo "<strong>PHP ".phpversion()."</strong>";
 EOF
 
 PHP_SOCKET=$(grep '^listen =' $PREFIX/etc/php-fpm.d/www.conf | awk '{print $3}')
-
-
 
 cat > $PREFIX/etc/nginx/nginx.conf <<EOF
 worker_processes 1;
@@ -113,17 +48,12 @@ include fastcgi.conf;
 fastcgi_pass unix:${PHP_SOCKET};
 fastcgi_index index.php;
 fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-
-
 }
 }
 }
 EOF
 
 [ -d "$PREFIX/var/lib/mysql/mysql" ] || mariadb-install-db --user=$(whoami)
-
-
-
 
 SSH_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)
 printf "%s\n%s\n" "$SSH_PASS" "$SSH_PASS" | passwd >/dev/null
@@ -137,21 +67,12 @@ sleep 2
 pkill nginx 2>/dev/null || true
 nginx
 
-
 USER=$(whoami)
 IP=$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
 
-
-
-
-
-
-
 [ -z "$IP" ] && IP=$(hostname -I | awk '{print $1}')
 
-
 clear
-
 
 echo "========================================"
 echo "     Mobile Server Ready 🚀"
