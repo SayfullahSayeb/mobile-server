@@ -84,6 +84,24 @@ if [ -f "$PREFIX/bin/mobile-server" ]; then
     chmod +x "$PREFIX/bin/mobile-server"
 fi
 
+echo "[*] Downloading library files..."
+
+mkdir -p ~/server/sites/default/public_html/lib
+download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/TunnelProvider.php" \
+    ~/server/sites/default/public_html/lib/TunnelProvider.php
+download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/CloudflareTunnelProvider.php" \
+    ~/server/sites/default/public_html/lib/CloudflareTunnelProvider.php
+download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/TunnelManager.php" \
+    ~/server/sites/default/public_html/lib/TunnelManager.php
+
+echo "[*] Downloading panel files..."
+
+mkdir -p ~/server/sites/default/public_html/panel
+for panel_file in login.php header.php footer.php dashboard.php files.php sites.php wordpress.php cloudflare.php update.php control.css; do
+    download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/panel/$panel_file" \
+        ~/server/sites/default/public_html/panel/$panel_file
+done
+
 echo "[*] Configuring PHP-FPM and Nginx..."
 
 PHP_SOCKET=""
