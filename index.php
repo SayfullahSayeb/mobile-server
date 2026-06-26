@@ -1,63 +1,11 @@
 <?php
 date_default_timezone_set('Asia/Dhaka');
 
-// Route phpMyAdmin requests to the Termux phpMyAdmin installation
-$pmaPath = '/data/data/com.termux/files/usr/share/phpmyadmin';
-$pmaPrefix = '/phpmyadmin';
-if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], $pmaPrefix) === 0) {
-    if (!is_dir($pmaPath)) {
-        http_response_code(404);
-        echo 'phpMyAdmin not found. Install: pkg install phpmyadmin';
-        exit;
-    }
-    $reqPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    $relPath = ltrim(substr($reqPath, strlen($pmaPrefix)), '/');
-
-    // Main entry point
-    if ($relPath === '' || $relPath === 'index.php') {
-        $_SERVER['SCRIPT_NAME'] = $pmaPrefix . '/index.php';
-        $_SERVER['SCRIPT_FILENAME'] = $pmaPath . '/index.php';
-        chdir($pmaPath);
-        require $pmaPath . '/index.php';
-        exit;
-    }
-
-    $file = $pmaPath . '/' . $relPath;
-
-    if (!is_file($file)) {
-        http_response_code(404);
-        exit;
-    }
-
-    // Execute PHP files (AJAX endpoints, etc.)
-    if (preg_match('/\.php$/i', $relPath)) {
-        $_SERVER['SCRIPT_NAME'] = $pmaPrefix . '/' . $relPath;
-        $_SERVER['SCRIPT_FILENAME'] = $file;
-        chdir(dirname($file));
-        require $file;
-        exit;
-    }
-
-    // Serve static files with correct MIME type
-    $ext = strtolower(pathinfo($relPath, PATHINFO_EXTENSION));
-    $mimes = [
-        'css' => 'text/css',
-        'js'  => 'application/javascript',
-        'png' => 'image/png',
-        'jpg' => 'image/jpeg',
-        'jpeg'=> 'image/jpeg',
-        'gif' => 'image/gif',
-        'svg' => 'image/svg+xml',
-        'ico' => 'image/x-icon',
-        'woff'=> 'font/woff',
-        'woff2'=>'font/woff2',
-        'ttf' => 'font/ttf',
-        'eot' => 'application/vnd.ms-fontobject',
-    ];
-    $mime = $mimes[$ext] ?? 'application/octet-stream';
-    header('Content-Type: ' . $mime);
-    readfile($file);
-    exit;
+// Create phpMyAdmin symlink if installed
+$pmaSource = '/data/data/com.termux/files/usr/share/phpmyadmin';
+$pmaLink = __DIR__ . '/phpmyadmin';
+if (is_dir($pmaSource) && !is_link($pmaLink) && !file_exists($pmaLink)) {
+    @symlink($pmaSource, $pmaLink);
 }
 
 function status($process) {

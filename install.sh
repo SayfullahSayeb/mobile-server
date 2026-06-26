@@ -42,6 +42,12 @@ mkdir -p \
     ~/server/logs \
     ~/server/configs
 
+# Create phpMyAdmin symlink if installed
+if [ -d "$PREFIX/share/phpmyadmin" ]; then
+    ln -sf "$PREFIX/share/phpmyadmin" ~/server/sites/default/public_html/phpmyadmin
+    echo "[*] phpMyAdmin linked."
+fi
+
 echo "[*] Setting up File Manager..."
 
 download_file() {
