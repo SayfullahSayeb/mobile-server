@@ -120,38 +120,10 @@ function showUpdateModal() {
     log.scrollTop = log.scrollHeight;
   }
 
-  addLine('$ cd ~/mobile-server && git fetch origin && git pull');
+  addLine('$ mobile-server update');
 
-  sshExec('cd ~/mobile-server && git fetch origin 2>&1').then(function(r1) {
-    addLine(r1.output);
-
-    if (r1.output.indexOf('fatal') !== -1 || r1.output.indexOf('Could not') !== -1) {
-      addLine('');
-      addLine('Fetch failed. Check your internet connection.');
-      addLine('You can manually update by running in Termux:');
-      addLine('  cd ~/mobile-server && git pull');
-      document.getElementById('updateBtn').disabled = false;
-      document.getElementById('updateFooter').style.display = 'flex';
-      return;
-    }
-
-    return sshExec('cd ~/mobile-server && git pull 2>&1');
-  }).then(function(r2) {
-    if (!r2) return;
-    addLine(r2.output);
-    addLine('');
-
-    if (r2.output.indexOf('Already up to date') !== -1) {
-      addLine('Already up to date!');
-    } else if (r2.output.indexOf('Updating') !== -1 || r2.output.indexOf('Fast-forward') !== -1) {
-      addLine('Update completed!');
-    } else if (r2.output.indexOf('fatal') !== -1 || r2.output.indexOf('error') !== -1) {
-      addLine('Pull failed. Resolve conflicts manually in Termux:');
-      addLine('  cd ~/mobile-server && git pull');
-    } else {
-      addLine('Done.');
-    }
-
+  sshExec('mobile-server update 2>&1').then(function(r) {
+    addLine(r.output);
     document.getElementById('updateBtn').disabled = false;
     document.getElementById('updateFooter').style.display = 'flex';
   });
