@@ -168,7 +168,7 @@ body{background:var(--bg-body);font-family:-apple-system,BlinkMacSystemFont,'Seg
 .modal-title{font-size:16px;font-weight:700}
 .modal-close{font-size:24px;color:var(--text3);cursor:pointer;line-height:1;transition:color .12s}
 .modal-close:hover{color:var(--text)}
-.wp-fields{padding:14px;background:rgba(15,23,42,.4);border-radius:var(--rs);margin-top:4px}
+.wp-fields{background:rgba(15,23,42,.4);border-radius:var(--rs);margin-top:4px}
 .wp-fields .fr2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
 .fl{display:block;font-size:16px;font-weight:600;color:var(--text2);margin-bottom:4px}
@@ -207,7 +207,6 @@ body{background:var(--bg-body);font-family:-apple-system,BlinkMacSystemFont,'Seg
 .ig{grid-template-columns:1fr}
 .topbar{padding:0 10px}
 .modal-content{padding:14px}
-.wp-fields{padding:10px}
 .sidebar{max-width:75vw}
 .modal.show{align-items:stretch;padding:0}
 .modal-content{border-radius:0}

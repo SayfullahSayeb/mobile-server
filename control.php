@@ -101,27 +101,60 @@ function saveSitesConfig(array $config): void {
     file_put_contents(SITES_JSON, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 
+function getWpZip(): string {
+    $cacheDir = HOME_DIR . '/server/wp-cache';
+    $zipPath = $cacheDir . '/latest.zip';
+    $metaFile = $cacheDir . '/.meta';
+    $ttl = 86400 * 7; // 7 days
+
+    @mkdir($cacheDir, 0755, true);
+
+    $valid = false;
+    if (is_file($zipPath) && is_file($metaFile)) {
+        $meta = @json_decode(@file_get_contents($metaFile), true);
+        if (is_array($meta) && isset($meta['time'])) {
+            $valid = (time() - (int)$meta['time']) < $ttl;
+        }
+    }
+
+    if (!$valid) {
+        exec("curl -sL https://wordpress.org/latest.zip -o " . escapeshellarg($zipPath) . " 2>&1", $raw, $rc);
+        if ($rc !== 0) {
+            if (is_file($zipPath)) return $zipPath;
+            return '';
+        }
+        file_put_contents($metaFile, json_encode(['time' => time()]));
+    }
+
+    return $zipPath;
+}
+
 function installWordPress(string $sitePath, string $siteName, string $wpUser, string $wpPass, string $wpEmail, string $wpTitle): array {
     global $db_user, $db_pass;
-    $zip = HOME_DIR . '/server/wp.zip';
-    exec("curl -sL https://wordpress.org/latest.zip -o " . escapeshellarg($zip) . " 2>&1", $raw, $rc);
-    if ($rc !== 0) return [false, 'Failed to download WordPress'];
+
+    if (!is_dir($sitePath)) {
+        @mkdir($sitePath, 0755, true);
+    }
+
+    $zip = getWpZip();
+    if (!$zip) return [false, 'Failed to download WordPress'];
+    if (!is_file($zip)) return [false, 'WordPress zip not found'];
+
     exec("unzip -qo " . escapeshellarg($zip) . " -d " . escapeshellarg(dirname($sitePath)) . " 2>&1", $raw, $rc2);
-    if ($rc2 !== 0) { @unlink($zip); return [false, 'Failed to extract WordPress']; }
+    if ($rc2 !== 0) return [false, 'Failed to extract WordPress'];
     $wp_temp = dirname($sitePath) . '/wordpress';
     if (is_dir($wp_temp)) {
         exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($sitePath . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
     }
+
     $db_name = 'wp_' . str_replace('-', '_', $siteName);
     exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
     exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
     exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
     exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
+
     $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
-    if (!$wp_config) {
-        @unlink($zip);
-        return [false, 'WordPress files missing after extraction'];
-    }
+    if (!$wp_config) return [false, 'WordPress files missing after extraction'];
     $wp_config = str_replace(
         ["'database_name_here'", "'username_here'", "'password_here'"],
         ["'$db_name'", "'$db_user'", "'$db_pass'"],
@@ -132,11 +165,9 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
         $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
     }
     if (file_put_contents($sitePath . '/wp-config.php', $wp_config) === false) {
-        @unlink($zip);
         return [false, 'Failed to write wp-config.php'];
     }
     @chmod($sitePath, 0755);
-    @unlink($zip);
     return [true, ''];
 }
 
