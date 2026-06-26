@@ -31,8 +31,8 @@ $newCwd = $_SESSION['ssh_cwd'];
 
 if ($cmd === '') {
     // Just return current prompt
-} elseif (preg_match('/^\s*cd\s/', $cmd)) {
-    // Handle cd command - change directory
+} elseif (preg_match('/^\s*cd\s+(\S+)\s*$/', $cmd)) {
+    // Handle simple cd command (no chaining)
     $parts = preg_split('/\s+/', $cmd, 2);
     $target = isset($parts[1]) ? trim($parts[1]) : $home;
     if ($target === '' || $target === '~') {

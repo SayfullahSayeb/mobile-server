@@ -122,7 +122,7 @@ function showUpdateModal() {
 
   addLine('$ ~/mobile-server/mobile-server update');
 
-  sshExec('cd ~/mobile-server && bash mobile-server update 2>&1').then(function(r) {
+  sshExec('cd ~/mobile-server && bash mobile-server update').then(function(r) {
     addLine(r.output);
     document.getElementById('updateBtn').disabled = false;
     document.getElementById('updateFooter').style.display = 'flex';
