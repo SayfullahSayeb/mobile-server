@@ -83,101 +83,82 @@
 
 <div id="updateModal" class="modal">
   <div class="modal-bg" onclick="closeUpdateModal()"></div>
-  <div class="modal-content" style="max-width:600px">
+  <div class="modal-content" style="max-width:650px">
     <div class="modal-header">
       <span class="modal-title"><i class="fas fa-sync-alt"></i> Updating Mobile Server</span>
       <span class="modal-close" onclick="closeUpdateModal()">&times;</span>
     </div>
-    <div class="st3" style="margin-bottom:8px;font-size:13px" id="updateStatus">Starting update...</div>
-    <div style="height:4px;background:rgba(51,65,85,.4);border-radius:4px;overflow:hidden;margin-bottom:14px">
-      <div id="updateBar" style="height:100%;width:0%;background:linear-gradient(90deg,#3b82f6,#22c55e);border-radius:4px;transition:width .3s"></div>
-    </div>
-    <div id="updateLog" class="lv" style="max-height:300px;overflow-y:auto;font-size:12px;line-height:1.7;padding:10px"></div>
+    <div id="updateLog" class="lv" style="max-height:350px;overflow-y:auto;font-size:13px;line-height:1.6;padding:12px;font-family:'JetBrains Mono','Fira Code',monospace;white-space:pre-wrap"></div>
     <div class="modal-footer" id="updateFooter" style="display:none">
-      <button class="btn btn-p" onclick="closeUpdateModal()">Close</button>
+      <button class="btn btn-p" onclick="location.reload()">Close &amp; Reload</button>
     </div>
   </div>
 </div>
 
 <script>
+var token = <?= json_encode($csrf_token) ?>;
+
+function sshExec(cmd) {
+  return fetch('panel/ssh_exec.php', {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: 'cmd=' + encodeURIComponent(cmd) + '&csrf_token=' + encodeURIComponent(token)
+  }).then(function(r) { return r.json(); });
+}
+
 function showUpdateModal() {
   var modal = document.getElementById('updateModal');
   var log = document.getElementById('updateLog');
-  var bar = document.getElementById('updateBar');
-  var status = document.getElementById('updateStatus');
-  var footer = document.getElementById('updateFooter');
   modal.classList.add('show');
   log.innerHTML = '';
-  bar.style.width = '0%';
-  status.textContent = 'Starting...';
-  status.style.color = '';
-  footer.style.display = 'none';
   document.getElementById('updateBtn').disabled = true;
 
-  var es = new EventSource('?tab=update&action=stream&csrf_token=<?= htmlspecialchars($csrf_token) ?>');
-
-  es.addEventListener('line', function(e) {
-    var line = document.createElement('div');
-    line.textContent = e.data;
-    log.appendChild(line);
+  function addLine(text) {
+    var d = document.createElement('div');
+    d.textContent = text;
+    log.appendChild(d);
     log.scrollTop = log.scrollHeight;
-  });
+  }
 
-  es.addEventListener('start', function(e) {
-    status.textContent = e.data;
-  });
+  addLine('$ cd ~/mobile-server && git fetch origin && git pull');
 
-  es.addEventListener('total', function(e) {
-    var n = parseInt(e.data);
-    if (n > 0) bar.style.width = '1%';
-  });
+  sshExec('cd ~/mobile-server && git fetch origin 2>&1').then(function(r1) {
+    addLine(r1.output);
 
-  es.addEventListener('progress', function(e) {
-    var d = JSON.parse(e.data);
-    if (d.status === 'ok') {
-      var line = document.createElement('div');
-      line.innerHTML = '<span style="color:var(--green)">\u2713</span> ' + escHtml(d.file);
-      log.appendChild(line);
-      log.scrollTop = log.scrollHeight;
+    if (r1.output.indexOf('fatal') !== -1 || r1.output.indexOf('Could not') !== -1) {
+      addLine('');
+      addLine('Fetch failed. Check your internet connection.');
+      addLine('You can manually update by running in Termux:');
+      addLine('  cd ~/mobile-server && git pull');
+      document.getElementById('updateBtn').disabled = false;
+      document.getElementById('updateFooter').style.display = 'flex';
+      return;
+    }
+
+    return sshExec('cd ~/mobile-server && git pull 2>&1');
+  }).then(function(r2) {
+    if (!r2) return;
+    addLine(r2.output);
+    addLine('');
+
+    if (r2.output.indexOf('Already up to date') !== -1) {
+      addLine('Already up to date!');
+    } else if (r2.output.indexOf('Updating') !== -1 || r2.output.indexOf('Fast-forward') !== -1) {
+      addLine('Update completed!');
+    } else if (r2.output.indexOf('fatal') !== -1 || r2.output.indexOf('error') !== -1) {
+      addLine('Pull failed. Resolve conflicts manually in Termux:');
+      addLine('  cd ~/mobile-server && git pull');
     } else {
-      var line = document.createElement('div');
-      line.innerHTML = '<span style="color:var(--red)">\u2717</span> ' + escHtml(d.file);
-      log.appendChild(line);
-      log.scrollTop = log.scrollHeight;
+      addLine('Done.');
     }
-    if (d.total > 0) {
-      bar.style.width = ((d.current / d.total) * 100) + '%';
-    }
-  });
 
-  es.addEventListener('done', function(e) {
-    var d = JSON.parse(e.data);
-    status.textContent = d.message;
-    status.style.color = d.success ? 'var(--green)' : 'var(--red)';
-    bar.style.width = '100%';
-    bar.style.background = d.success ? 'var(--green)' : 'var(--red)';
-    footer.style.display = 'flex';
     document.getElementById('updateBtn').disabled = false;
-    es.close();
+    document.getElementById('updateFooter').style.display = 'flex';
   });
-
-  es.onerror = function() {
-    status.textContent = 'Connection lost.';
-    status.style.color = 'var(--red)';
-    footer.style.display = 'flex';
-    document.getElementById('updateBtn').disabled = false;
-    es.close();
-  };
 }
 
 function closeUpdateModal() {
   document.getElementById('updateModal').classList.remove('show');
-}
-
-function escHtml(s) {
-  var d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
 }
 </script>
 
