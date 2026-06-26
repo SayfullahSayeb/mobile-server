@@ -654,12 +654,35 @@ if ($logged_in) {
             $cert = SSL_DIR . '/cert.pem';
             $key = SSL_DIR . '/key.pem';
             $ip = $ip_addr ?? 'localhost';
-            // Generate self-signed cert valid for 10 years
+            // Try openssl CLI first, then fallback to PHP openssl
             exec("openssl req -x509 -newkey rsa:2048 -keyout " . escapeshellarg($key) . " -out " . escapeshellarg($cert) . " -days 3650 -nodes -subj '/CN=$ip' 2>&1", $raw, $rc);
             if ($rc !== 0) {
-                $flash = ['error', 'Failed to generate SSL certificate: ' . implode(' ', $raw)];
-                panelLog('HTTPS setup failed');
-            } else {
+                // Fallback: generate cert with PHP's openssl extension
+                $genOk = false;
+                if (function_exists('openssl_pkey_new') && function_exists('openssl_csr_new') && function_exists('openssl_csr_sign')) {
+                    $pkey = @openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+                    if ($pkey) {
+                        $csr = @openssl_csr_new(['commonName' => $ip, 'organizationName' => 'Mobile Server'], $pkey);
+                        if ($csr) {
+                            $cacert = @openssl_csr_sign($csr, null, $pkey, 3650);
+                            if ($cacert) {
+                                @openssl_csr_export($csr, $csrStr);
+                                @openssl_pkey_export($pkey, $pkeyStr);
+                                @openssl_x509_export($cacert, $certStr);
+                                if ($pkeyStr && $certStr) {
+                                    file_put_contents($key, $pkeyStr);
+                                    file_put_contents($cert, $certStr);
+                                    $genOk = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!$genOk) {
+                    $flash = ['error', 'Failed to generate SSL certificate. Install openssl: pkg install openssl in Termux'];
+                    panelLog('HTTPS setup failed');
+                }
+            }
                 // Write SSL server block as a separate config in the sites include dir
                 $sslConf = NGINX_SITES_DIR . '/_ssl.conf';
                 $sslBlock = "server {\n"
