@@ -3,19 +3,25 @@
 case "${1:-}" in
     start)
         echo "Starting Mobile Server..."
-        if pgrep -x php-fpm >/dev/null 2>&1; then echo "  PHP-FPM    Already running"; else php-fpm 2>/dev/null && echo "  PHP-FPM    Running" || echo "  PHP-FPM    Failed"; fi
-        if pgrep -x mariadbd >/dev/null 2>&1; then echo "  MariaDB    Already running"; else mariadbd-safe >/dev/null 2>&1 & sleep 2; if pgrep -x mariadbd >/dev/null 2>&1; then echo "  MariaDB    Running"; else echo "  MariaDB    Failed"; fi; fi
-        if nginx -t >/dev/null 2>&1; then
-            if pgrep -x nginx >/dev/null 2>&1; then echo "  Nginx      Already running"; else nginx && echo "  Nginx      Running" || echo "  Nginx      Failed"; fi
-        else
-            echo "  Nginx      Config error — run 'nginx -t'"
-        fi
+        if pgrep nginx >/dev/null 2>&1; then echo "  Nginx      Already running"; elif nginx -t >/dev/null 2>&1; then nginx && echo "  Nginx      Running" || echo "  Nginx      Failed"; else echo "  Nginx      Config error — run 'nginx -t'"; fi
+        if pgrep php-fpm >/dev/null 2>&1; then echo "  PHP-FPM    Already running"; else php-fpm 2>/dev/null && echo "  PHP-FPM    Running" || echo "  PHP-FPM    Failed"; fi
+        if pgrep mariadbd >/dev/null 2>&1; then echo "  MariaDB    Already running"; else mariadbd-safe >/dev/null 2>&1 & sleep 2; if pgrep mariadbd >/dev/null 2>&1; then echo "  MariaDB    Running"; else echo "  MariaDB    Failed"; fi; fi
         ;;
     stop)
         echo "Stopping Mobile Server..."
-        pkill nginx 2>/dev/null || true
-        pkill php-fpm 2>/dev/null || true
-        pkill mariadbd 2>/dev/null || true
+        for svc in nginx php-fpm mariadbd; do
+            if pgrep "$svc" >/dev/null 2>&1; then
+                pkill -9 "$svc" 2>/dev/null || true
+                sleep 1
+                if pgrep "$svc" >/dev/null 2>&1; then
+                    printf "  %-10s  Force killed\n" "$svc"
+                else
+                    printf "  %-10s  Stopped\n" "$svc"
+                fi
+            else
+                printf "  %-10s  Not running\n" "$svc"
+            fi
+        done
         echo "Mobile Server stopped"
         ;;
     restart)
@@ -27,7 +33,7 @@ case "${1:-}" in
         echo "Mobile Server Status"
         echo "--------------------"
         for svc in nginx php-fpm mariadbd; do
-            if pgrep -x "$svc" >/dev/null 2>&1; then
+            if pgrep "$svc" >/dev/null 2>&1; then
                 printf "  %-10s  Running\n" "$svc"
             else
                 printf "  %-10s  Stopped\n" "$svc"
