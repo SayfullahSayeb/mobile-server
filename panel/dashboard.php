@@ -85,27 +85,3 @@
   <div class="ii"><div class="l">Web Server</div><div class="v">Nginx :8080</div></div>
 </div>
 
-<div class="sec">
-  <div class="df jb ac fw g2 mb2">
-    <div class="st" style="margin-bottom:0">Log Viewer</div>
-    <form method="get">
-      <select name="log" class="sel" style="width:auto;margin-bottom:0;padding:7px 10px" onchange="this.form.submit()">
-        <option value="">Select a log...</option>
-        <?php foreach ($log_files as $name => $path): ?>
-        <option value="<?= $name ?>" <?= ($_GET['log'] ?? '') === $name ? 'selected' : '' ?>><?= ucfirst($name) ?>.log<?= $path ? '' : ' (empty)' ?></option>
-        <?php endforeach; ?>
-      </select>
-    </form>
-  </div>
-  <?php
-  if (isset($_GET['log']) && isset($log_files[$_GET['log']]) && $log_files[$_GET['log']]) {
-      $lines = file($log_files[$_GET['log']]);
-      $lines = $lines ? array_slice($lines, -LOG_MAX_LINES) : [];
-      echo '<pre class="lv">' . ($lines ? htmlspecialchars(implode('', $lines)) : 'Log is empty') . '</pre>';
-  } elseif (isset($_GET['log'])) {
-      echo '<pre class="lv">Log file not found</pre>';
-  } else {
-      echo '<pre class="lv" style="color:var(--text3)">Select a log file above to view</pre>';
-  }
-  ?>
-</div>

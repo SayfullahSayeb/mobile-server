@@ -26,8 +26,11 @@ ksort($allSites);
 <div class="sec">
   <div class="df jb ac fw g2 mb2">
     <div class="st" style="margin-bottom:0">Manage Sites</div>
-    <div class="df ac g2">
+    <div class="df ac g2 fw">
       <span class="ts tm"><?= count($allSites) ?> site<?= count($allSites) !== 1 ? 's' : '' ?></span>
+      <?php if (!empty($ip_addr) && $ip_addr !== 'N/A'): ?>
+      <span class="ts tm" style="color:var(--text2)"><i class="fas fa-network-wired"></i> <?= htmlspecialchars($ip_addr) ?></span>
+      <?php endif; ?>
       <button class="btn btn-p btn-l" onclick="document.getElementById('siteModal').classList.add('show')"><i class="fas fa-plus"></i> Add New</button>
     </div>
   </div>
@@ -50,6 +53,9 @@ ksort($allSites);
         <td>
           <?php if (!empty($site['domain']) && $site['port']): ?>
           <a href="http://<?= htmlspecialchars($site['domain']) ?>:<?= $site['port'] ?>" target="_blank" class="sd"><?= htmlspecialchars($site['domain']) ?>:<?= $site['port'] ?></a>
+          <?php if (!empty($ip_addr) && $ip_addr !== 'N/A'): ?>
+          <div class="tm ts" style="margin-top:3px">Also: <a href="http://<?= htmlspecialchars($ip_addr) ?>:<?= $site['port'] ?>" target="_blank" style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--text3)"><?= htmlspecialchars($ip_addr) ?>:<?= $site['port'] ?></a></div>
+          <?php endif; ?>
           <?php else: ?>
           <span class="tm ts">/<?= htmlspecialchars($name) ?></span>
           <?php endif; ?>

@@ -3,7 +3,7 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; script-src 'self' https://code.jquery.com https://cdnjs.cloudflare.com 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline'; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; frame-ancestors 'self'; connect-src 'self';");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' https://code.jquery.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net 'unsafe-inline'; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; frame-ancestors 'self'; connect-src 'self' ws://127.0.0.1:8023 wss://127.0.0.1:8023;");
 
 function csrf(): string {
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token'] ?? '') . '">';
@@ -37,6 +37,12 @@ function csrf(): string {
     </a>
     <a href="?tab=cloudflare" class="nav-i <?= $tab==='cloudflare'?'act':'' ?>">
       <span class="ni"><i class="fas fa-cloud"></i></span><span class="nl">Cloudflare</span>
+    </a>
+    <a href="?tab=ssh" class="nav-i <?= $tab==='ssh'?'act':'' ?>">
+      <span class="ni"><i class="fas fa-terminal"></i></span><span class="nl">SSH</span>
+    </a>
+    <a href="?tab=logs" class="nav-i <?= $tab==='logs'?'act':'' ?>">
+      <span class="ni"><i class="fas fa-list-alt"></i></span><span class="nl">Logs</span>
     </a>
     <a href="?tab=files" class="nav-i <?= $tab==='files'?'act':'' ?>">
       <span class="ni"><i class="fas fa-folder"></i></span><span class="nl">File Manager</span>
