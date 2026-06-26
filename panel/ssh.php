@@ -44,6 +44,7 @@
         brightCyan: '#56d4dd', brightWhite: '#f0f6fc',
       },
       allowTransparency: true,
+      rightClickSelectsWord: true,
     });
     term.loadAddon(fitAddon);
     term.open(container);
@@ -53,15 +54,60 @@
 
 
 
+    // Middle-click → paste
+    term.element.addEventListener('mousedown', function(ev) {
+      if (ev.button === 1) {
+        ev.preventDefault();
+        navigator.clipboard.readText().then(function(text) {
+          inputLine += text;
+          cursorPos += text.length;
+          term.write(text.replace(/\n/g, '\r\n'));
+        });
+      }
+    });
+    // Right-click → paste
+    term.element.addEventListener('contextmenu', function(ev) {
+      ev.preventDefault();
+      navigator.clipboard.readText().then(function(text) {
+        inputLine += text;
+        cursorPos += text.length;
+        term.write(text.replace(/\n/g, '\r\n'));
+      });
+    });
+
     execCmd('').then(function(r) {
       prompt = r.prompt;
       term.write(prompt);
     });
 
+    term.attachCustomKeyEventHandler(function(ev) {
+      if (ev.type !== 'keydown') return true;
+      // Ctrl+Shift+V → paste
+      if (ev.ctrlKey && ev.shiftKey && ev.key === 'V') {
+        navigator.clipboard.readText().then(function(text) {
+          inputLine += text;
+          cursorPos += text.length;
+          term.write(text.replace(/\n/g, '\r\n'));
+        });
+        return false;
+      }
+      // Ctrl+C → copy if text selected, else SIGINT
+      if (ev.ctrlKey && ev.key === 'c') {
+        if (term.hasSelection()) {
+          document.execCommand('copy');
+          term.clearSelection();
+          return false;
+        }
+        return true; // let xterm handle as SIGINT
+      }
+      return true;
+    });
+
     term.onKey(function(e) {
       const ev = e.domEvent;
       if (ev.altKey || ev.ctrlKey || ev.metaKey) {
-        if (ev.ctrlKey && ev.key === 'c') {
+        // Ctrl+C with no selection → SIGINT
+        if (ev.ctrlKey && ev.key === 'c' && !term.hasSelection()) {
           inputLine = '';
           cursorPos = 0;
           term.writeln('^C');
