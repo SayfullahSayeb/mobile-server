@@ -14,6 +14,7 @@ pkg install -y \
     php \
     php-fpm \
     mariadb \
+    phpmyadmin \
     git \
     curl \
     wget \
@@ -27,6 +28,7 @@ pkg install -y \
         php \
         php-fpm \
         mariadb \
+        phpmyadmin \
         git \
         curl \
         wget \
