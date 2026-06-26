@@ -304,13 +304,16 @@ if ($logged_in) {
                 $flash = ['error', 'Invalid site name (use a-z, 0-9, -, _)'];
             } elseif (!in_array($type, ['static', 'wordpress'], true)) {
                 $flash = ['error', 'Invalid site type'];
+            } elseif (isset(getSitesConfig()[$name])) {
+                $flash = ['error', "Site '$name' already exists in config"];
             } else {
                 $siteDir = SITES_DIR . '/' . $name;
                 $publicHtml = $siteDir . '/public_html';
-                if (is_dir($publicHtml)) {
-                    $flash = ['error', "Site '$name' already exists"];
-                } else {
-                    $port = getNextPort();
+                // Clean up stale dir if it exists (e.g. from a previous delete with files kept)
+                if (is_dir($siteDir)) {
+                    exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
+                }
+                $port = getNextPort();
                     if ($port === 0) {
                         $flash = ['error', 'No available port (all 8081-8999 are in use)'];
                     } else {
@@ -332,6 +335,8 @@ if ($logged_in) {
                             if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
                             file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                             rewriteNginxMainConfig();
+                            // Write a default index so site never 403s (WordPress will overwrite it)
+                            file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
                             $wpResult = [true, ''];
                             if ($type === 'wordpress') {
                                 $wpUser = trim($_POST['wp_user'] ?? 'admin');
@@ -343,8 +348,6 @@ if ($logged_in) {
                                 } else {
                                     $wpResult = installWordPress($publicHtml, $name, $wpUser, $wpPass, $wpEmail, $wpTitle);
                                 }
-                            } else {
-                                file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
                             }
                             $restartOk = reloadNginx();
                             if (!$restartOk) {
@@ -361,7 +364,6 @@ if ($logged_in) {
                             }
                         }
                     }
-                }
             }
         } elseif ($action === 'delete_site') {
             $name = trim($_POST['site_name'] ?? '');

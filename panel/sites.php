@@ -125,11 +125,11 @@ ksort($allSites);
       <span class="modal-title" id="modalTitle">Add New Site</span>
       <span class="modal-close" onclick="closeModal()">&times;</span>
     </div>
-    <form method="post" id="siteForm">
+    <form method="post" id="siteForm" onsubmit="return submitSiteForm(this)">
       <?= csrf() ?>
       <input type="hidden" name="action" id="formAction" value="create_site">
       <input type="hidden" name="site_name_orig" id="siteNameOrig" value="">
-      <input type="text" name="site_name" id="siteName" class="inp" placeholder="Site name (e.g. myapp)" required pattern="[a-z0-9_-]+" title="Letters, numbers, hyphens, underscores only">
+      <input type="text" name="site_name" id="siteName" class="inp" placeholder="Site name (e.g. myapp)" required pattern="[a-z0-9_-]+" title="Letters, numbers, hyphens, underscores only" oninput="autoFillTitle()">
       <input type="hidden" name="site_domain" id="siteDomain" value="">
       <div class="st2" style="margin:0 0 8px">Site Type</div>
       <div class="df ac g3 mb1" id="siteTypeGroup">
@@ -156,6 +156,20 @@ ksort($allSites);
         <button type="submit" class="btn btn-p" id="submitBtn">Create Site</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div id="progressModal" class="modal">
+  <div class="modal-bg"></div>
+  <div class="modal-content" style="max-width:420px;text-align:center">
+    <div class="modal-header" style="border:none;padding-bottom:0">
+      <span class="modal-title" id="progressTitle"><i class="fas fa-cog fa-spin"></i> Creating Site...</span>
+    </div>
+    <div style="margin:16px 0 8px;text-align:left;font-size:13px;color:var(--text2)" id="progressStatus">Preparing...</div>
+    <div style="height:6px;background:rgba(51,65,85,.4);border-radius:4px;overflow:hidden;margin-bottom:4px">
+      <div id="progressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#3b82f6,#22c55e);border-radius:4px;transition:width .4s"></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);text-align:right" id="progressPct">0%</div>
   </div>
 </div>
 
@@ -209,6 +223,13 @@ function showDeleteModal(name) {
 function closeDeleteModal() {
   document.getElementById('deleteModal').classList.remove('show');
 }
+function autoFillTitle() {
+  var name = document.getElementById('siteName').value;
+  var title = document.getElementById('wpTitle');
+  if (title.value === '') {
+    title.value = name.replace(/[-_]/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+  }
+}
 function editSite(name, domain, type) {
   document.getElementById('formAction').value = 'edit_site';
   document.getElementById('modalTitle').textContent = 'Edit Site: ' + name;
@@ -220,5 +241,54 @@ function editSite(name, domain, type) {
   if (radio) radio.checked = true;
   toggleWpFields();
   document.getElementById('siteModal').classList.add('show');
+}
+function submitSiteForm(form) {
+  var type = document.querySelector('input[name="site_type"]:checked').value;
+  var isWp = type === 'wordpress';
+
+  if (isWp && !document.getElementById('wpPass').value) {
+    alert('Admin password is required for WordPress.');
+    return false;
+  }
+
+  var data = new FormData(form);
+  var modal = document.getElementById('progressModal');
+  var bar = document.getElementById('progressBar');
+  var status = document.getElementById('progressStatus');
+  var pct = document.getElementById('progressPct');
+
+  modal.classList.add('show');
+  document.getElementById('progressTitle').innerHTML = '<i class="fas fa-cog fa-spin"></i> Creating ' + (isWp ? 'WordPress' : 'Static') + ' Site...';
+  document.getElementById('submitBtn').disabled = true;
+
+  // Animate bar while waiting
+  var anim = 5;
+  var animInterval = setInterval(function() {
+    if (anim < 90) {
+      anim += Math.random() * 8;
+      if (anim > 90) anim = 90;
+      bar.style.width = anim + '%';
+      pct.textContent = Math.round(anim) + '%';
+    }
+  }, 1000);
+
+  status.textContent = isWp ? 'Downloading & installing WordPress...' : 'Creating site...';
+
+  fetch(window.location.href, {
+    method: 'POST',
+    body: data
+  }).then(function(r) { return r.text(); }).then(function() {
+    clearInterval(animInterval);
+    bar.style.width = '100%';
+    pct.textContent = '100%';
+    status.textContent = 'Done! Reloading...';
+    setTimeout(function() { location.reload(); }, 600);
+  }).catch(function(err) {
+    clearInterval(animInterval);
+    status.textContent = 'Error: ' + err;
+    document.getElementById('submitBtn').disabled = false;
+  });
+
+  return false;
 }
 </script>
