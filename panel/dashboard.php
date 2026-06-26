@@ -6,11 +6,7 @@
       <input type="hidden" name="action" value="restart_all">
       <button type="submit" class="btn btn-w btn-s" onclick="return confirm('Restart all services?')">↻ Restart All</button>
     </form>
-    <form method="post" style="display:inline">
-      <?= csrf() ?>
-      <input type="hidden" name="action" value="update_system">
-      <button type="submit" class="btn btn-p btn-s" id="updateBtn" onclick="this.disabled=true;this.innerHTML='<i class=\'fas fa-spinner fa-pulse\'></i> Updating...'"><i class="fas fa-sync-alt"></i> Update</button>
-    </form>
+    <button class="btn btn-p btn-s" id="updateBtn" onclick="showUpdateModal()"><i class="fas fa-sync-alt"></i> Update</button>
   </div>
 </div>
 <div class="sr">
@@ -84,4 +80,95 @@
   <div class="ii"><div class="l">PHP Version</div><div class="v"><?= htmlspecialchars($php_ver) ?></div></div>
   <div class="ii"><div class="l">Web Server</div><div class="v">Nginx :8080</div></div>
 </div>
+
+<div id="updateModal" class="modal">
+  <div class="modal-bg" onclick="closeUpdateModal()"></div>
+  <div class="modal-content" style="max-width:600px">
+    <div class="modal-header">
+      <span class="modal-title"><i class="fas fa-sync-alt"></i> Updating Mobile Server</span>
+      <span class="modal-close" onclick="closeUpdateModal()">&times;</span>
+    </div>
+    <div class="st3" style="margin-bottom:8px;font-size:13px" id="updateStatus">Starting update...</div>
+    <div style="height:4px;background:rgba(51,65,85,.4);border-radius:4px;overflow:hidden;margin-bottom:14px">
+      <div id="updateBar" style="height:100%;width:0%;background:linear-gradient(90deg,#3b82f6,#22c55e);border-radius:4px;transition:width .3s"></div>
+    </div>
+    <div id="updateLog" class="lv" style="max-height:300px;overflow-y:auto;font-size:12px;line-height:1.7;padding:10px"></div>
+    <div class="modal-footer" id="updateFooter" style="display:none">
+      <button class="btn btn-p" onclick="closeUpdateModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function showUpdateModal() {
+  var modal = document.getElementById('updateModal');
+  var log = document.getElementById('updateLog');
+  var bar = document.getElementById('updateBar');
+  var status = document.getElementById('updateStatus');
+  var footer = document.getElementById('updateFooter');
+  modal.classList.add('show');
+  log.innerHTML = '';
+  bar.style.width = '0%';
+  status.textContent = 'Starting...';
+  status.style.color = '';
+  footer.style.display = 'none';
+  document.getElementById('updateBtn').disabled = true;
+
+  var es = new EventSource('?tab=update&action=stream&csrf_token=<?= htmlspecialchars($csrf_token) ?>');
+
+  es.addEventListener('start', function(e) {
+    status.textContent = e.data;
+    log.innerHTML += '<div style="color:var(--blue)">\u2502 ' + e.data + '</div>';
+  });
+
+  es.addEventListener('total', function(e) {
+    log.innerHTML += '<div style="color:var(--text3)">\u2502 Total files: ' + e.data + '</div>';
+  });
+
+  es.addEventListener('progress', function(e) {
+    var d = JSON.parse(e.data);
+    var line = document.createElement('div');
+    if (d.status === 'ok') {
+      line.innerHTML = '<span style="color:var(--green)">\u2713</span> ' + escHtml(d.file);
+    } else {
+      line.innerHTML = '<span style="color:var(--red)">\u2717</span> ' + escHtml(d.file);
+    }
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+    if (d.total > 0) {
+      bar.style.width = ((d.current / d.total) * 100) + '%';
+      status.textContent = d.current + ' / ' + d.total + ' files';
+    }
+  });
+
+  es.addEventListener('done', function(e) {
+    var d = JSON.parse(e.data);
+    status.textContent = d.message;
+    status.style.color = d.success ? 'var(--green)' : 'var(--red)';
+    bar.style.width = '100%';
+    bar.style.background = d.success ? 'var(--green)' : 'var(--red)';
+    footer.style.display = 'flex';
+    document.getElementById('updateBtn').disabled = false;
+    es.close();
+  });
+
+  es.onerror = function() {
+    status.textContent = 'Connection lost. Check Logs page for details.';
+    status.style.color = 'var(--red)';
+    footer.style.display = 'flex';
+    document.getElementById('updateBtn').disabled = false;
+    es.close();
+  };
+}
+
+function closeUpdateModal() {
+  document.getElementById('updateModal').classList.remove('show');
+}
+
+function escHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+</script>
 

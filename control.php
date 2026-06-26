@@ -414,6 +414,15 @@ if ($logged_in) {
         } elseif ($action === 'restart_nginx') {
             $ok = restartNginx();
             $flash = [$ok ? 'success' : 'error', $ok ? 'Nginx restarted' : 'Failed to restart Nginx'];
+        } elseif ($action === 'nginx_test') {
+            exec('nginx -t 2>&1', $raw, $rc);
+            $_SESSION['nginx_diag'] = implode("\n", $raw);
+            $flash = [$rc === 0 ? 'success' : 'error', 'nginx -t ' . ($rc === 0 ? 'passed' : 'failed')];
+        } elseif ($action === 'check_ports') {
+            exec("ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null", $raw, $rc);
+            $ports = $raw ? implode("\n", $raw) : 'No output (ss/netstat not available)';
+            $_SESSION['nginx_diag'] = $ports;
+            $flash = ['success', 'Port check complete. See diagnostics below.'];
         } elseif ($action === 'wp_install') {
             $site_name = trim($_POST['wp_site'] ?? '');
             $wp_user = trim($_POST['wp_user'] ?? 'admin');
@@ -535,23 +544,6 @@ if ($logged_in) {
                 $tunnelManager->setActiveTunnel($id, $name);
                 $flash = ['success', 'Active tunnel set to: ' . htmlspecialchars($name)];
             }
-        } elseif ($action === 'start_ssh_ws') {
-            $home = getenv('HOME') ?: '/data/data/com.termux/files/home';
-            $pidFile = $home . '/server/.ssh_ws.pid';
-            $running = false;
-            if (is_file($pidFile)) {
-                $pid = (int)trim(file_get_contents($pidFile));
-                if ($pid > 0 && @is_file("/proc/$pid")) {
-                    $running = true;
-                }
-            }
-            if (!$running) {
-                $serverScript = __DIR__ . '/panel/ssh_server.php';
-                exec("nohup php " . escapeshellarg($serverScript) . " > /dev/null 2>&1 &");
-                usleep(300000);
-            }
-            echo 'ok';
-            exit;
         } elseif ($action === 'update_system') {
             $target_dir = __DIR__;
             $tmp_dir = '/tmp/mobile-server-update-' . bin2hex(random_bytes(4));
