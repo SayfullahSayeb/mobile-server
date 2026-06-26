@@ -42,9 +42,6 @@ mkdir -p \
 
 echo "[*] Setting up File Manager..."
 
-# File Manager (elFinder)
-mkdir -p ~/server/sites/default/public_html/elfinder
-
 download_file() {
     local url="$1"
     local dest="$2"
@@ -54,30 +51,27 @@ download_file() {
     fi
 }
 
-download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/elfinder/panel.php" \
-    ~/server/sites/default/public_html/elfinder/panel.php
-
-download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/elfinder/connector.php" \
-    ~/server/sites/default/public_html/elfinder/connector.php
-
-ELFINDER_VER="2.1.69"
-ELDEST=~/server/sites/default/public_html/elfinder/php
-echo "[*] Installing elFinder PHP library..."
-rm -rf /tmp/elfinder.zip /tmp/elFinder-$ELFINDER_VER/ 2>/dev/null
-curl -fsSL --retry 5 "https://github.com/Studio-42/elFinder/archive/refs/tags/$ELFINDER_VER.zip" -o /tmp/elfinder.zip 2>/dev/null ||
-    wget -q "https://github.com/Studio-42/elFinder/archive/refs/tags/$ELFINDER_VER.zip" -O /tmp/elfinder.zip 2>/dev/null
-if [ -f /tmp/elfinder.zip ] && unzip -qo /tmp/elfinder.zip -d /tmp/ 2>/dev/null; then
-    rm -rf "$ELDEST" 2>/dev/null
-    cp -r "/tmp/elFinder-$ELFINDER_VER/php" "$ELDEST" 2>/dev/null
-fi
-if [ ! -f "$ELDEST/autoload.php" ]; then
-    echo "[!] elFinder download failed. Downloading individual files..."
-    mkdir -p "$ELDEST/plugins" "$ELDEST/libs" "$ELDEST/editors"
-    for f in autoload.php elFinder.php elFinderConnector.class.php elFinderVolumeDriver.class.php elFinderVolumeLocalFileSystem.class.php elFinderSession.php elFinderSessionInterface.php elFinderPlugin.php; do
-        curl -fsSL "https://raw.githubusercontent.com/Studio-42/elFinder/$ELFINDER_VER/php/$f" -o "$ELDEST/$f" 2>/dev/null
-    done
-fi
-[ -f "$ELDEST/autoload.php" ] && echo "[*] elFinder ready." || echo "[!] Warning: elFinder missing. File manager won't work."
+mkdir -p ~/server/sites/default/public_html/filemanager
+echo "[*] Installing Tiny File Manager..."
+download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/filemanager/panel.php" \
+    ~/server/sites/default/public_html/filemanager/panel.php
+download_file "https://raw.githubusercontent.com/prasathmani/tinyfilemanager/master/tinyfilemanager.php" \
+    ~/server/sites/default/public_html/filemanager/tinyfilemanager.php
+cat > ~/server/sites/default/public_html/filemanager/config.php <<'CFG'
+<?php
+$use_auth = false;
+$root_path = (getenv('HOME') ?: '/data/data/com.termux/files/home') . '/server/sites';
+$root_url = '';
+$http_host = $_SERVER['HTTP_HOST'];
+$default_timezone = 'Etc/UTC';
+$datetime_format = 'Y-m-d H:i:s';
+$app_title = 'File Manager';
+$global_readonly = false;
+$show_hidden = true;
+$edit_files = true;
+$CONFIG = '{"lang":"en","error_reporting":false,"show_hidden":true,"hide_Cols":false,"theme":"dark"}';
+CFG
+[ -f ~/server/sites/default/public_html/filemanager/tinyfilemanager.php ] && echo "[*] Tiny File Manager ready." || echo "[!] Warning: File Manager download failed."
 
 download_file "https://sayfullahsayeb.github.io/mobile-server/index.php" \
     ~/server/sites/default/public_html/index.php

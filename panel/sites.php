@@ -2,7 +2,7 @@
 $config = getSitesConfig();
 $allSites = [];
 $dirs = glob(SITES_DIR . '/*', GLOB_ONLYDIR);
-$exclude = ['default', 'elfinder', 'lib', 'panel'];
+$exclude = ['default', 'filemanager', 'lib', 'panel'];
 if ($dirs) {
     foreach ($dirs as $d) {
         $name = basename($d);

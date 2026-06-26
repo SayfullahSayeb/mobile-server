@@ -26,49 +26,51 @@ function send($type, $data) {
 send('start', 'Starting update...');
 sleep(1);
 
-$base_url = 'https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main';
 $target_dir = dirname(__DIR__);
-$lib_dir = $target_dir . '/lib';
-if (!is_dir($lib_dir)) @mkdir($lib_dir, 0755, true);
-$home_server = (getenv('HOME') ?: '/data/data/com.termux/files/home') . '/server';
-$elfinder_dir = $target_dir . '/elfinder';
-if (!is_dir($elfinder_dir)) @mkdir($elfinder_dir, 0755, true);
+$tmp_dir = '/tmp/mobile-server-update-' . bin2hex(random_bytes(4));
+$repo_url = 'https://github.com/SayfullahSayeb/mobile-server.git';
 
-$files = [
-    'index.php' => $target_dir . '/index.php',
-    'control.php' => $target_dir . '/control.php',
-    'install.sh' => $home_server . '/install.sh',
-    'lib/TunnelProvider.php' => $lib_dir . '/TunnelProvider.php',
-    'lib/CloudflareTunnelProvider.php' => $lib_dir . '/CloudflareTunnelProvider.php',
-    'lib/TunnelManager.php' => $lib_dir . '/TunnelManager.php',
-    'elfinder/panel.php' => $elfinder_dir . '/panel.php',
-    'elfinder/connector.php' => $elfinder_dir . '/connector.php',
-    'panel/header.php' => $target_dir . '/panel/header.php',
-    'panel/dashboard.php' => $target_dir . '/panel/dashboard.php',
-    'panel/cloudflare.php' => $target_dir . '/panel/cloudflare.php',
-    'panel/sites.php' => $target_dir . '/panel/sites.php',
-    'panel/wordpress.php' => $target_dir . '/panel/wordpress.php',
-    'panel/update.php' => $target_dir . '/panel/update.php',
-    'panel/login.php' => $target_dir . '/panel/login.php',
-    'panel/footer.php' => $target_dir . '/panel/footer.php',
-    'panel/control.css' => $target_dir . '/panel/control.css',
-    'panel/update_stream.php' => $target_dir . '/panel/update_stream.php',
-];
+if (!is_dir($tmp_dir)) @mkdir($tmp_dir, 0755, true);
+exec("git clone --depth 1 " . escapeshellarg($repo_url) . " " . escapeshellarg($tmp_dir) . " 2>&1", $raw, $rc);
+
+if ($rc !== 0) {
+    send('progress', json_encode([
+        'file' => 'git clone',
+        'status' => 'fail',
+        'current' => 1,
+        'total' => 1
+    ]));
+    send('done', json_encode([
+        'success' => false,
+        'message' => 'Failed to clone repository. Check internet connection.'
+    ]));
+    exit;
+}
+
+$files = [];
+$iterator = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($tmp_dir, RecursiveDirectoryIterator::SKIP_DOTS)
+);
+foreach ($iterator as $file) {
+    $relPath = substr($file->getPathname(), strlen($tmp_dir) + 1);
+    if (str_starts_with($relPath, '.git') || str_starts_with($relPath, '.git/')) continue;
+    if ($file->isDir()) continue;
+    $files[] = $relPath;
+}
 
 $all_ok = true;
 $count = 0;
 $total = count($files);
 send('total', (string)$total);
 
-foreach ($files as $remote => $local) {
+foreach ($files as $relPath) {
     $count++;
-    $dir = dirname($local);
-    if (!is_dir($dir)) @mkdir($dir, 0755, true);
-    $url = $base_url . '/' . $remote;
-    exec("curl -sL " . escapeshellarg($url) . " -o " . escapeshellarg($local) . " 2>&1", $raw, $rc);
-    if ($rc === 0) {
+    $dest = $target_dir . '/' . $relPath;
+    $destDir = dirname($dest);
+    if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+    if (@copy($tmp_dir . '/' . $relPath, $dest)) {
         send('progress', json_encode([
-            'file' => $remote,
+            'file' => $relPath,
             'status' => 'ok',
             'current' => $count,
             'total' => $total
@@ -76,13 +78,15 @@ foreach ($files as $remote => $local) {
     } else {
         $all_ok = false;
         send('progress', json_encode([
-            'file' => $remote,
+            'file' => $relPath,
             'status' => 'fail',
             'current' => $count,
             'total' => $total
         ]));
     }
 }
+
+exec("rm -rf " . escapeshellarg($tmp_dir) . " 2>&1");
 
 sleep(1);
 send('done', json_encode([

@@ -7,7 +7,7 @@
       <li>index.php — public status dashboard</li>
       <li>control.php — admin control panel</li>
       <li>panel/*.php — panel UI files</li>
-      <li>elfinder/*.php — file manager</li>
+      <li>filemanager/* — file manager</li>
       <li>lib/*.php — core libraries</li>
       <li>install.sh — installation script</li>
     </ul>
