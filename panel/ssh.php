@@ -120,10 +120,12 @@
         return true;
       });
 
-      term.onPaste(function(text) {
-        inputLine += text;
-        cursorPos += text.length;
-      });
+      if (typeof term.onPaste === 'function') {
+        term.onPaste(function(text) {
+          inputLine += text;
+          cursorPos += text.length;
+        });
+      }
 
       term.onKey(function(e) {
         var ev = e.domEvent;
