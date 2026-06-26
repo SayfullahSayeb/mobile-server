@@ -11,7 +11,7 @@
 <?php foreach ($services as $name => $s): $is_running = $status[$name]; ?>
 <div class="sc">
   <div class="sc-h">
-    <div class="sc-ic <?= $icons[$name]??'nx' ?>"><?= $name==='Nginx'?'⚡':($name==='PHP-FPM'?'🐘':'🗄️') ?></div>
+    <div class="sc-ic <?= $icons[$name]??'nx' ?>"><?= $name==='Nginx'?'<i class="fas fa-bolt"></i>':($name==='PHP-FPM'?'<i class="fas fa-server"></i>':'<i class="fas fa-database"></i>') ?></div>
     <span class="bdg <?= $is_running ? 'on' : 'off' ?>"><span class="dt"></span><?= $is_running ? 'Running' : 'Stopped' ?></span>
   </div>
   <div class="sc-n"><?= htmlspecialchars($name) ?></div>
@@ -31,7 +31,7 @@
 <div class="sec">
   <div class="df jb ac fw g3">
     <div class="df ac g3">
-      <div class="sc-ic tn">☁️</div>
+      <div class="sc-ic tn"><i class="fas fa-cloud"></i></div>
       <div class="st" style="margin:0">Cloudflare Tunnel</div>
       <span class="bdg <?= $ts['running'] ? 'on' : 'off' ?>"><span class="dt"></span><?= $ts['running'] ? 'Running' : 'Stopped' ?></span>
     </div>
@@ -39,7 +39,7 @@
       <form method="post" style="display:inline"><?= csrf() ?><input type="hidden" name="action" value="tunnel_start"><button type="submit" class="btn btn-st btn-s" <?= $ts['running'] ? 'disabled' : '' ?>>▶ Start</button></form>
       <form method="post" style="display:inline"><?= csrf() ?><input type="hidden" name="action" value="tunnel_stop"><button type="submit" class="btn btn-sp btn-s" onclick="return confirm('Stop tunnel?')" <?= !$ts['running'] ? 'disabled' : '' ?>>■ Stop</button></form>
       <form method="post" style="display:inline"><?= csrf() ?><input type="hidden" name="action" value="tunnel_restart"><button type="submit" class="btn btn-rs btn-s" onclick="return confirm('Restart tunnel?')">↻ Restart</button></form>
-      <a href="?tab=cloudflare" class="btn btn-p btn-s">📋 Logs</a>
+      <a href="?tab=cloudflare" class="btn btn-p btn-s"><i class="fas fa-list"></i> Logs</a>
     </div>
   </div>
   <?php if (!empty($ts['urls'])): ?>
@@ -62,7 +62,7 @@
   <?php if (!empty($tunnelHealth['issues'])): ?>
   <div class="mt2">
     <?php foreach ($tunnelHealth['issues'] as $issue): ?>
-    <div style="background:rgba(239,68,68,.1);color:var(--red);padding:7px 10px;border-radius:var(--rs);font-size:11px;margin-bottom:3px">⚠ <?= htmlspecialchars($issue) ?></div>
+    <div style="background:rgba(239,68,68,.1);color:var(--red);padding:7px 10px;border-radius:var(--rs);font-size:11px;margin-bottom:3px"><i class="fas fa-exclamation-triangle"></i> <?= htmlspecialchars($issue) ?></div>
     <?php endforeach; ?>
   </div>
   <?php endif; ?>

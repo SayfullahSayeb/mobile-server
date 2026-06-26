@@ -61,15 +61,23 @@ download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/ma
     ~/server/sites/default/public_html/elfinder/connector.php
 
 ELFINDER_VER="2.1.69"
-if curl -sL "https://github.com/Studio-42/elFinder/archive/refs/tags/$ELFINDER_VER.zip" -o /tmp/elfinder.zip; then
-    unzip -qo /tmp/elfinder.zip -d /tmp/ 2>/dev/null
-    if [ -d "/tmp/elFinder-$ELFINDER_VER/php" ]; then
-        cp -r "/tmp/elFinder-$ELFINDER_VER/php" ~/server/sites/default/public_html/elfinder/
-    fi
-    rm -rf /tmp/elfinder.zip "/tmp/elFinder-$ELFINDER_VER/" 2>/dev/null
-else
-    echo "[!] Warning: Failed to download elFinder. File manager may not work."
+ELDEST=~/server/sites/default/public_html/elfinder/php
+echo "[*] Installing elFinder PHP library..."
+rm -rf /tmp/elfinder.zip /tmp/elFinder-$ELFINDER_VER/ 2>/dev/null
+curl -fsSL --retry 5 "https://github.com/Studio-42/elFinder/archive/refs/tags/$ELFINDER_VER.zip" -o /tmp/elfinder.zip 2>/dev/null ||
+    wget -q "https://github.com/Studio-42/elFinder/archive/refs/tags/$ELFINDER_VER.zip" -O /tmp/elfinder.zip 2>/dev/null
+if [ -f /tmp/elfinder.zip ] && unzip -qo /tmp/elfinder.zip -d /tmp/ 2>/dev/null; then
+    rm -rf "$ELDEST" 2>/dev/null
+    cp -r "/tmp/elFinder-$ELFINDER_VER/php" "$ELDEST" 2>/dev/null
 fi
+if [ ! -f "$ELDEST/autoload.php" ]; then
+    echo "[!] elFinder download failed. Downloading individual files..."
+    mkdir -p "$ELDEST/plugins" "$ELDEST/libs" "$ELDEST/editors"
+    for f in autoload.php elFinder.php elFinderConnector.class.php elFinderVolumeDriver.class.php elFinderVolumeLocalFileSystem.class.php elFinderSession.php elFinderSessionInterface.php elFinderPlugin.php; do
+        curl -fsSL "https://raw.githubusercontent.com/Studio-42/elFinder/$ELFINDER_VER/php/$f" -o "$ELDEST/$f" 2>/dev/null
+    done
+fi
+[ -f "$ELDEST/autoload.php" ] && echo "[*] elFinder ready." || echo "[!] Warning: elFinder missing. File manager won't work."
 
 download_file "https://sayfullahsayeb.github.io/mobile-server/index.php" \
     ~/server/sites/default/public_html/index.php
@@ -140,12 +148,23 @@ location ~ /\.(git|ht) { deny all; }
 }
 EOF
 
-echo "[*] Generating control panel password..."
+echo "[*] Setting up control panel password..."
 
-CONTROL_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c 16)
-if [ -z "$CONTROL_PASS" ]; then
-    CONTROL_PASS="admin$(date +%s)"
+CONTROL_PASS_FILE=~/server/.panel_password
+CONTROL_PASS=""
+
+if [ -f "$CONTROL_PASS_FILE" ]; then
+    CONTROL_PASS=$(cat "$CONTROL_PASS_FILE")
+    echo "[*] Using existing control panel password."
+else
+    CONTROL_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c 16)
+    if [ -z "$CONTROL_PASS" ]; then
+        CONTROL_PASS="admin$(date +%s)"
+    fi
+    echo "$CONTROL_PASS" > "$CONTROL_PASS_FILE" 2>/dev/null || true
+    chmod 600 "$CONTROL_PASS_FILE" 2>/dev/null || true
 fi
+
 PHP_HASH=$(php -r "echo password_hash('$CONTROL_PASS', PASSWORD_BCRYPT);" 2>/dev/null || echo "")
 if [ -z "$PHP_HASH" ]; then
     echo "[!] Warning: Failed to generate password hash. Control panel may not work."
@@ -269,15 +288,7 @@ fi
 echo "Website:"
 echo "  http://${IP}:8080"
 echo
-echo "File Manager:"
-echo "  http://${IP}:8080/elfinder/panel.php"
-echo
-echo "Control Panel:"
-echo "  http://${IP}:8080/control.php"
-echo
 echo "Panel Password:"
 echo "  $CONTROL_PASS"
 echo
-echo "========================================"
-echo "  Save these passwords. They are shown only once."
 echo "========================================"

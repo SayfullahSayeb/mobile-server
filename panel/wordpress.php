@@ -1,5 +1,5 @@
 <div class="sec">
-  <div class="st">🔷 One-Click WordPress Install</div>
+  <div class="st"><i class="fab fa-wordpress"></i> One-Click WordPress Install</div>
   <div class="st3">Creates a site directory, downloads WordPress, sets up MariaDB, and prepares wp-config.</div>
   <form method="post">
     <?= csrf() ?>
@@ -11,6 +11,6 @@
       <input type="password" name="wp_pass" class="inp" placeholder="Admin password" required>
     </div>
     <input type="email" name="wp_email" class="inp" placeholder="Admin email" value="admin@localhost.local">
-    <button type="submit" class="btn btn-p btn-l">📥 Install WordPress</button>
+    <button type="submit" class="btn btn-p btn-l"><i class="fas fa-download"></i> Install WordPress</button>
   </form>
 </div>

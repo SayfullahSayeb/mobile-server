@@ -439,10 +439,10 @@ if ($logged_in) {
                 $url = $base_url . '/' . $remote;
                 exec("curl -sL " . escapeshellarg($url) . " -o " . escapeshellarg($local) . " 2>&1", $raw, $rc);
                 if ($rc === 0) {
-                    $results[] = "✓ Updated $remote";
+                    $results[] = '<i class="fas fa-check"></i> Updated ' . $remote;
                 } else {
                     $all_ok = false;
-                    $results[] = "✗ Failed to download $remote";
+                    $results[] = '<i class="fas fa-times"></i> Failed to download ' . $remote;
                 }
             }
             $flash_type = $all_ok ? 'success' : 'error';

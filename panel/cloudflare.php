@@ -6,23 +6,23 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 
 <?php if (!$tunnelInstalled): ?>
 <div class="sec">
-  <div class="st">☁️ Cloudflare Tunnel</div>
+  <div class="st"><i class="fas fa-cloud"></i> Cloudflare Tunnel</div>
   <div class="st3">Cloudflare Tunnel (cloudflared) creates a secure tunnel from your server to the Cloudflare edge network, allowing you to expose local websites to the internet without port forwarding.</div>
   <form method="post">
     <?= csrf() ?>
     <input type="hidden" name="action" value="tunnel_install">
-    <button type="submit" class="btn btn-p btn-l">📥 Install Cloudflare Tunnel</button>
+    <button type="submit" class="btn btn-p btn-l"><i class="fas fa-download"></i> Install Cloudflare Tunnel</button>
   </form>
 </div>
 
 <?php elseif (!$tunnelAuthenticated): ?>
 <div class="sec">
-  <div class="st">☁️ Cloudflare Authentication</div>
+  <div class="st"><i class="fas fa-cloud"></i> Cloudflare Authentication</div>
   <div class="st3">Authenticate with your Cloudflare account to create and manage tunnels.</div>
 
   <?php if ($tunnelLoginStatus === 'pending'): ?>
   <div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);padding:14px;margin-bottom:14px">
-    <div style="color:var(--orange);font-size:13px;font-weight:600;margin-bottom:6px">⏳ Authentication in Progress</div>
+    <div style="color:var(--orange);font-size:13px;font-weight:600;margin-bottom:6px"><i class="fas fa-hourglass-half"></i> Authentication in Progress</div>
     <?php if ($tunnelLoginUrl): ?>
     <div class="ts tm mb2">Open this URL in a browser to authenticate with Cloudflare:</div>
     <div style="background:rgba(15,23,42,.5);padding:8px 12px;border-radius:var(--rs);word-break:break-all;font-size:11px;color:var(--blue);font-family:monospace;margin-bottom:8px"><?= htmlspecialchars($tunnelLoginUrl) ?></div>
@@ -38,7 +38,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
   <form method="post">
     <?= csrf() ?>
     <input type="hidden" name="action" value="tunnel_login">
-    <button type="submit" class="btn btn-p btn-l">🔑 Login to Cloudflare</button>
+    <button type="submit" class="btn btn-p btn-l"><i class="fas fa-key"></i> Login to Cloudflare</button>
   </form>
   <?php endif; ?>
 </div>
@@ -47,17 +47,17 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 
 <div class="sec">
   <div class="df jb ac fw g2">
-    <div class="st" style="margin-bottom:0">🔑 Authentication</div>
+    <div class="st" style="margin-bottom:0"><i class="fas fa-key"></i> Authentication</div>
     <form method="post" style="display:inline">
       <input type="hidden" name="action" value="tunnel_logout">
-      <button type="submit" class="btn btn-d btn-s" onclick="return confirm('Logout from Cloudflare? This will remove stored credentials.')">✕ Logout</button>
+      <button type="submit" class="btn btn-d btn-s" onclick="return confirm('Logout from Cloudflare? This will remove stored credentials.')"><i class="fas fa-times"></i> Logout</button>
     </form>
   </div>
-  <div style="color:var(--green);font-size:13px;margin-top:6px">✓ Authenticated with Cloudflare</div>
+  <div style="color:var(--green);font-size:13px;margin-top:6px"><i class="fas fa-check"></i> Authenticated with Cloudflare</div>
 </div>
 
 <div class="sec">
-  <div class="st">🔄 Tunnel Management</div>
+  <div class="st"><i class="fas fa-sync-alt"></i> Tunnel Management</div>
 
   <?php if (!empty($tunnelList)): ?>
   <div class="st2">Existing Tunnels</div>
@@ -83,7 +83,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
         <?= csrf() ?>
         <input type="hidden" name="action" value="tunnel_delete">
         <input type="hidden" name="tunnel_id" value="<?= htmlspecialchars($t['id']) ?>">
-        <button type="submit" class="btn btn-d btn-s">🗑 Delete</button>
+        <button type="submit" class="btn btn-d btn-s"><i class="fas fa-trash-alt"></i> Delete</button>
       </form>
     </div>
   </div>
@@ -96,7 +96,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       <?= csrf() ?>
       <input type="hidden" name="action" value="tunnel_create">
       <input type="text" name="tunnel_name" class="inp" placeholder="Tunnel name (e.g., my-server)" required pattern="[a-zA-Z0-9_-]+" title="Letters, numbers, hyphens, underscores">
-      <button type="submit" class="btn btn-p">➕ Create Tunnel</button>
+      <button type="submit" class="btn btn-p"><i class="fas fa-plus"></i> Create Tunnel</button>
     </form>
   </div>
 </div>
@@ -105,7 +105,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 <div class="sec">
   <div class="df jb ac fw g3">
     <div class="df ac g3">
-      <div class="st" style="margin-bottom:0">☁️ <?= htmlspecialchars($tunnelName ?: $tunnelId) ?></div>
+      <div class="st" style="margin-bottom:0"><i class="fas fa-cloud"></i> <?= htmlspecialchars($tunnelName ?: $tunnelId) ?></div>
       <span class="bdg <?= $ts['running'] ? 'on' : 'off' ?>"><span class="dt"></span><?= $ts['running'] ? 'Running' : 'Stopped' ?></span>
     </div>
     <div class="df ac g2 fw">
@@ -128,7 +128,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 </div>
 
 <div class="sec">
-  <div class="st">🌐 Hostname Mapping</div>
+  <div class="st"><i class="fas fa-globe"></i> Hostname Mapping</div>
   <div class="st3">Map a public hostname to a local website. Requires the domain to be in your Cloudflare account.</div>
 
   <?php if (!empty($tunnelHostnames)): ?>
@@ -143,7 +143,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       <?= csrf() ?>
       <input type="hidden" name="action" value="tunnel_remove_hostname">
       <input type="hidden" name="hostname" value="<?= htmlspecialchars($hostname) ?>">
-      <button type="submit" class="btn btn-d btn-s">🗑 Remove</button>
+      <button type="submit" class="btn btn-d btn-s"><i class="fas fa-trash-alt"></i> Remove</button>
     </form>
   </div>
   <?php endforeach; ?>
@@ -156,7 +156,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       <input type="hidden" name="action" value="tunnel_add_hostname">
       <input type="text" name="hostname" class="inp" placeholder="e.g., app.mydomain.com" required>
       <input type="text" name="target" class="inp" placeholder="e.g., http://127.0.0.1:8080" value="http://127.0.0.1:8080">
-      <button type="submit" class="btn btn-p">➕ Add Hostname</button>
+      <button type="submit" class="btn btn-p"><i class="fas fa-plus"></i> Add Hostname</button>
     </form>
     <div class="fh">Target should be the local URL of your website (e.g., http://127.0.0.1:8080)</div>
   </div>
@@ -167,7 +167,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 
 <?php if ($tunnelInstalled && $tunnelAuthenticated): ?>
 <div class="sec">
-  <div class="st">⚙️ Auto-Start</div>
+  <div class="st"><i class="fas fa-cog"></i> Auto-Start</div>
   <form method="post">
     <?= csrf() ?>
     <input type="hidden" name="action" value="tunnel_set_autostart">
@@ -180,7 +180,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 
 <div class="sec">
   <div class="df jb ac fw g2 mb2">
-    <div class="st" style="margin-bottom:0">📋 Tunnel Logs</div>
+    <div class="st" style="margin-bottom:0"><i class="fas fa-list"></i> Tunnel Logs</div>
     <div class="df g2">
       <form method="get">
         <input type="hidden" name="tab" value="cloudflare">
@@ -190,9 +190,9 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       <form method="post">
         <?= csrf() ?>
         <input type="hidden" name="action" value="tunnel_clear_logs">
-        <button type="submit" class="btn btn-d btn-s" onclick="return confirm('Clear tunnel logs?')">🗑 Clear</button>
+        <button type="submit" class="btn btn-d btn-s" onclick="return confirm('Clear tunnel logs?')"><i class="fas fa-trash-alt"></i> Clear</button>
       </form>
-      <a href="<?= htmlspecialchars($tunnelManager->getLogPath()) ?>" download class="btn btn-o btn-s">📥 Download</a>
+      <a href="<?= htmlspecialchars($tunnelManager->getLogPath()) ?>" download class="btn btn-o btn-s"><i class="fas fa-download"></i> Download</a>
     </div>
   </div>
   <pre class="lv"><?php
@@ -202,12 +202,12 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 </div>
 
 <div class="sec">
-  <div class="st">❤️ Health Status</div>
+  <div class="st"><i class="fas fa-heart"></i> Health Status</div>
   <div class="ig" style="margin-bottom:0">
     <div class="ii">
       <div class="l">Tunnel Status</div>
       <div class="v" style="color:<?= $tunnelHealth['status'] === 'running' ? 'var(--green)' : 'var(--red)' ?>">
-        <?= $tunnelHealth['status'] === 'running' ? '✓ Running' : ($tunnelHealth['status'] === 'stopped' ? '✗ Stopped' : 'N/A') ?>
+        <?= $tunnelHealth['status'] === 'running' ? '<i class="fas fa-check"></i> Running' : ($tunnelHealth['status'] === 'stopped' ? '<i class="fas fa-times"></i> Stopped' : 'N/A') ?>
       </div>
     </div>
     <?php if (!empty($tunnelHealth['issues'])): ?>

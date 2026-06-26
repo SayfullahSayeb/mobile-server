@@ -71,7 +71,7 @@ ksort($allSites);
         <?= csrf() ?>
         <input type="hidden" name="action" value="delete_site">
         <input type="hidden" name="site_name" value="<?= htmlspecialchars($name) ?>">
-        <button type="submit" class="btn btn-d btn-s">🗑 Delete</button>
+        <button type="submit" class="btn btn-d btn-s"><i class="fas fa-trash-alt"></i> Delete</button>
       </form>
     </div>
   </div>
@@ -105,7 +105,7 @@ ksort($allSites);
     <form method="post">
       <?= csrf() ?>
       <input type="hidden" name="action" value="update_hosts">
-      <button type="submit" class="btn btn-w btn-l">🖊 Update Hosts File</button>
+      <button type="submit" class="btn btn-w btn-l"><i class="fas fa-pen"></i> Update Hosts File</button>
     </form>
   </div>
   <div class="mt2 ts tm" style="line-height:1.6">
