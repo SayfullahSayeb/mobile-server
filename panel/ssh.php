@@ -1,126 +1,90 @@
 <div class="sec" style="padding:0;overflow:hidden;height:calc(100vh - 140px);display:flex;flex-direction:column">
-  <div id="term-container" style="flex:1;min-height:0;padding:8px;background:#0d1117">
-    <div id="term-status" style="display:flex;align-items:center;justify-content:center;height:100%;color:#8b949e;font-size:15px;gap:10px">
+  <div id="term-container" style="flex:1;min-height:0;padding:8px;background:#0d1117;position:relative">
+    <div id="term-status" style="display:flex;align-items:center;justify-content:center;height:100%;color:#8b949e;font-size:15px;gap:10px;flex-direction:column">
       <i class="fas fa-terminal"></i> Terminal ready
+      <div id="term-loading" style="font-size:13px;color:#64748b;margin-top:4px">Loading xterm.js...</div>
+    </div>
+    <div id="term-error" style="display:none;align-items:center;justify-content:center;height:100%;color:#ff7b72;font-size:14px;gap:8px;flex-direction:column;padding:20px;text-align:center">
+      <i class="fas fa-exclamation-triangle" style="font-size:24px"></i>
+      <div id="term-error-msg" style="font-weight:600">Failed to load terminal</div>
+      <div style="font-size:13px;color:#8b949e">Check your internet connection or try a different browser.</div>
+      <button onclick="location.reload()" class="btn btn-p btn-s" style="margin-top:8px">Retry</button>
     </div>
   </div>
 </div>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" crossorigin="anonymous">
-<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js" crossorigin="anonymous"></script>
 <script>
 (function() {
-  const CSRF_TOKEN = '<?= htmlspecialchars($csrf_token ?? '') ?>';
-  let term = null;
-  let fitAddon = null;
-  let prompt = '';
-  let inputLine = '';
-  let cursorPos = 0;
+  'use strict';
+  var CSRF_TOKEN = '<?= htmlspecialchars($csrf_token ?? '') ?>';
+  var term = null;
+  var fitAddon = null;
+  var prompt = '';
+  var inputLine = '';
+  var cursorPos = 0;
+  var scriptsLoaded = { xterm: false, fit: false };
+  var initCalled = false;
+
+  var termContainer = document.getElementById('term-container');
+  var termStatus = document.getElementById('term-status');
+  var termLoading = document.getElementById('term-loading');
+  var termError = document.getElementById('term-error');
+  var termErrorMsg = document.getElementById('term-error-msg');
+
+  function showError(msg) {
+    if (termStatus) termStatus.style.display = 'none';
+    if (termError) {
+      termError.style.display = 'flex';
+      if (termErrorMsg) termErrorMsg.textContent = msg;
+    }
+  }
 
   function execCmd(cmd) {
     return fetch('panel/ssh_exec.php', {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'cmd=' + encodeURIComponent(cmd) + '&csrf_token=' + encodeURIComponent(CSRF_TOKEN)
-    }).then(r => r.json());
+    }).then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
   }
 
   function initTerminal() {
-    const container = document.getElementById('term-container');
-    document.getElementById('term-status').style.display = 'none';
-    fitAddon = new FitAddon.FitAddon();
-    term = new Terminal({
-      cursorBlink: true,
-      cursorStyle: 'block',
-      fontSize: 14,
-      fontFamily: "'SF Mono','Fira Code','Cascadia Code','JetBrains Mono','Noto Mono',Consolas,monospace",
-      theme: {
-        background: '#0d1117', foreground: '#c9d1d9', cursor: '#c9d1d9', selectionBackground: '#3b82f622',
-        black: '#484f58', red: '#ff7b72', green: '#3fb950', yellow: '#d29922',
-        blue: '#58a6ff', magenta: '#bc8cff', cyan: '#39c5cf', white: '#b1bac4',
-        brightBlack: '#6e7681', brightRed: '#ffa198', brightGreen: '#56d364',
-        brightYellow: '#e3b341', brightBlue: '#79c0ff', brightMagenta: '#d2a8ff',
-        brightCyan: '#56d4dd', brightWhite: '#f0f6fc',
-      },
-      allowTransparency: true,
-    });
-    term.loadAddon(fitAddon);
-    term.open(container);
-    term.focus();
-    setTimeout(() => { try { fitAddon.fit(); } catch(e) {} }, 50);
-    window.addEventListener('resize', function() { if (fitAddon) { try { fitAddon.fit(); } catch(e) {} } });
+    if (initCalled) return;
+    initCalled = true;
+    try {
+      if (typeof Terminal === 'undefined') throw new Error('xterm.js not loaded');
+      if (typeof FitAddon === 'undefined') throw new Error('xterm-addon-fit not loaded');
 
-
-
-    function doExec(cmd) {
-      inputLine = '';
-      cursorPos = 0;
-      term.write('\r\n$ ' + cmd + '\r\n');
-      execCmd(cmd).then(function(r) {
-        if (r.output) term.write(r.output.replace(/\n/g, '\r\n'));
-        if (!r.output.endsWith('\n')) term.writeln('');
-        prompt = r.prompt;
-        term.write(prompt);
-      }).catch(function() {
-        term.writeln('\x1b[31mError executing command\x1b[0m');
-        term.write(prompt);
+      if (termStatus) termStatus.style.display = 'none';
+      fitAddon = new FitAddon.FitAddon();
+      term = new Terminal({
+        cursorBlink: true,
+        cursorStyle: 'block',
+        fontSize: 14,
+        fontFamily: "'SF Mono','Fira Code','Cascadia Code','JetBrains Mono','Noto Mono',Consolas,monospace",
+        theme: {
+          background: '#0d1117', foreground: '#c9d1d9', cursor: '#c9d1d9', selectionBackground: '#3b82f622',
+          black: '#484f58', red: '#ff7b72', green: '#3fb950', yellow: '#d29922',
+          blue: '#58a6ff', magenta: '#bc8cff', cyan: '#39c5cf', white: '#b1bac4',
+          brightBlack: '#6e7681', brightRed: '#ffa198', brightGreen: '#56d364',
+          brightYellow: '#e3b341', brightBlue: '#79c0ff', brightMagenta: '#d2a8ff',
+          brightCyan: '#56d4dd', brightWhite: '#f0f6fc',
+        },
+        allowTransparency: true,
       });
-    }
+      term.loadAddon(fitAddon);
+      term.open(termContainer);
+      term.focus();
 
-    execCmd('').then(function(r) {
-      prompt = r.prompt;
-      term.write(prompt);
-      // Auto-run command from URL ?cmd=...
-      var autoCmd = new URLSearchParams(window.location.search).get('cmd');
-      if (autoCmd) {
-        doExec(autoCmd);
-      }
-    });
+      setTimeout(function() { try { fitAddon.fit(); } catch(e) {} }, 50);
+      window.addEventListener('resize', function() { if (fitAddon) { try { fitAddon.fit(); } catch(e) {} } });
 
-    term.attachCustomKeyEventHandler(function(ev) {
-      if (ev.type !== 'keydown') return true;
-      // Ctrl+C → copy if text selected, else let xterm handle SIGINT
-      if (ev.ctrlKey && ev.key === 'c') {
-        if (term.hasSelection()) {
-          document.execCommand('copy');
-          term.clearSelection();
-          return false;
-        }
-        return true;
-      }
-      return true;
-    });
-
-    // Paste: sync pasted text into our input buffer
-    term.onPaste(function(text) {
-      inputLine += text;
-      cursorPos += text.length;
-    });
-
-    term.onKey(function(e) {
-      const ev = e.domEvent;
-      if (ev.altKey || ev.ctrlKey || ev.metaKey) {
-        // Ctrl+C with no selection → SIGINT
-        if (ev.ctrlKey && ev.key === 'c' && !term.hasSelection()) {
-          inputLine = '';
-          cursorPos = 0;
-          term.writeln('^C');
-          term.write(prompt);
-        }
-        return;
-      }
-
-      if (ev.key === 'Enter') {
-        if (inputLine.trim() === '') {
-          term.writeln('');
-          term.write(prompt);
-          return;
-        }
-        term.writeln('');
-        const cmd = inputLine;
+      function doExec(cmd) {
         inputLine = '';
         cursorPos = 0;
+        term.write('\r\n$ ' + cmd + '\r\n');
         execCmd(cmd).then(function(r) {
           if (r.output) term.write(r.output.replace(/\n/g, '\r\n'));
           if (!r.output.endsWith('\n')) term.writeln('');
@@ -130,20 +94,130 @@
           term.writeln('\x1b[31mError executing command\x1b[0m');
           term.write(prompt);
         });
-      } else if (ev.key === 'Backspace') {
-        if (cursorPos > 0) {
-          inputLine = inputLine.slice(0, -1);
-          cursorPos--;
-          term.write('\b \b');
-        }
-      } else if (ev.key.length === 1) {
-        inputLine += ev.key;
-        cursorPos++;
-        term.write(ev.key);
       }
+
+      execCmd('').then(function(r) {
+        prompt = r.prompt;
+        term.write(prompt);
+        var autoCmd = new URLSearchParams(window.location.search).get('cmd');
+        if (autoCmd) doExec(autoCmd);
+      }).catch(function() {
+        term.writeln('\x1b[31mWarning: shell unavailable, but terminal is ready\x1b[0m');
+        prompt = '\x1b[32m$\x1b[0m ';
+        term.write(prompt);
+      });
+
+      term.attachCustomKeyEventHandler(function(ev) {
+        if (ev.type !== 'keydown') return true;
+        if (ev.ctrlKey && ev.key === 'c') {
+          if (term.hasSelection()) {
+            document.execCommand('copy');
+            term.clearSelection();
+            return false;
+          }
+          return true;
+        }
+        return true;
+      });
+
+      term.onPaste(function(text) {
+        inputLine += text;
+        cursorPos += text.length;
+      });
+
+      term.onKey(function(e) {
+        var ev = e.domEvent;
+        if (ev.altKey || ev.ctrlKey || ev.metaKey) {
+          if (ev.ctrlKey && ev.key === 'c' && !term.hasSelection()) {
+            inputLine = '';
+            cursorPos = 0;
+            term.writeln('^C');
+            term.write(prompt);
+          }
+          return;
+        }
+        if (ev.key === 'Enter') {
+          if (inputLine.trim() === '') {
+            term.writeln('');
+            term.write(prompt);
+            return;
+          }
+          term.writeln('');
+          var cmd = inputLine;
+          inputLine = '';
+          cursorPos = 0;
+          execCmd(cmd).then(function(r) {
+            if (r.output) term.write(r.output.replace(/\n/g, '\r\n'));
+            if (!r.output.endsWith('\n')) term.writeln('');
+            prompt = r.prompt;
+            term.write(prompt);
+          }).catch(function() {
+            term.writeln('\x1b[31mError executing command\x1b[0m');
+            term.write(prompt);
+          });
+        } else if (ev.key === 'Backspace') {
+          if (cursorPos > 0) {
+            inputLine = inputLine.slice(0, -1);
+            cursorPos--;
+            term.write('\b \b');
+          }
+        } else if (ev.key.length === 1) {
+          inputLine += ev.key;
+          cursorPos++;
+          term.write(ev.key);
+        }
+      });
+    } catch (e) {
+      showError('Terminal error: ' + e.message);
+    }
+  }
+
+  function loadXterm() {
+    if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
+      initTerminal();
+      return;
+    }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css';
+    link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+
+    var urls = [
+      'https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js',
+      'https://unpkg.com/xterm@5.3.0/lib/xterm.js',
+      'https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js'
+    ];
+    var fitUrls = [
+      'https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js',
+      'https://unpkg.com/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js',
+      'https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js'
+    ];
+
+    function loadScript(urls, idx, cb) {
+      if (idx >= urls.length) { cb(false); return; }
+      var s = document.createElement('script');
+      s.src = urls[idx];
+      s.onload = function() { cb(true); };
+      s.onerror = function() { loadScript(urls, idx + 1, cb); };
+      document.head.appendChild(s);
+    }
+
+    loadScript(urls, 0, function(ok) {
+      scriptsLoaded.xterm = ok;
+      if (!ok) { showError('Failed to load xterm.js from any CDN'); return; }
+      loadScript(fitUrls, 0, function(ok2) {
+        scriptsLoaded.fit = ok2;
+        if (!ok2) { showError('Failed to load xterm-addon-fit from any CDN'); return; }
+        initTerminal();
+      });
     });
   }
 
-  initTerminal();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadXterm);
+  } else {
+    loadXterm();
+  }
 })();
 </script>
