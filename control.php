@@ -640,7 +640,8 @@ if ($logged_in) {
 
     $status = [];
     foreach ($services as $name => $s) {
-        @exec('pgrep -x ' . escapeshellarg($s['process']), $out, $code);
+        $p = $s['process'];
+        @exec("pgrep -x '$p' 2>/dev/null || pgrep '$p' 2>/dev/null || pidof '$p' 2>/dev/null || (ps aux 2>/dev/null | grep -v grep | grep -q '$p')", $out, $code);
         $status[$name] = $code === 0;
     }
 
