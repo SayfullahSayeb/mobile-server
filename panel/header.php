@@ -51,7 +51,10 @@ function csrf(): string {
       <span class="ni"><i class="fas fa-cog"></i></span><span class="nl">Settings</span>
     </a>
   </div>
-  <div class="sb-foot">Mobile Server v1.0</div>
+  <div class="sb-foot">
+    <a href="?logout=1" class="sb-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    <div class="sb-ver">Mobile Server v1.0</div>
+  </div>
 </div>
 <div class="main">
   <div class="topbar">
@@ -65,7 +68,6 @@ function csrf(): string {
         <?php if (isset($hostname)): ?><strong><?= htmlspecialchars($hostname) ?></strong><br><?php endif; ?>
         <?php if (isset($server_time)): ?><?= htmlspecialchars($server_time) ?><?php endif; ?>
       </div>
-      <a href="?logout=1" class="tb-btn logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
     </div>
   </div>
   <div class="page">
