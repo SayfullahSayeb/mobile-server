@@ -1,11 +1,29 @@
 <?php
 date_default_timezone_set('Asia/Dhaka');
 
-// Create phpMyAdmin symlink if installed
+// Create phpMyAdmin symlink and config if installed
 $pmaSource = '/data/data/com.termux/files/usr/share/phpmyadmin';
 $pmaLink = __DIR__ . '/phpmyadmin';
-if (is_dir($pmaSource) && !is_link($pmaLink) && !file_exists($pmaLink)) {
-    @symlink($pmaSource, $pmaLink);
+if (is_dir($pmaSource)) {
+    if (!is_link($pmaLink) && !file_exists($pmaLink)) {
+        @symlink($pmaSource, $pmaLink);
+    }
+    $pmaConfig = $pmaSource . '/config.inc.php';
+    if (!file_exists($pmaConfig)) {
+        $blowfish = bin2hex(random_bytes(16));
+        $config = <<<PMA
+<?php
+\$cfg['blowfish_secret'] = '$blowfish';
+\$i = 0;
+\$i++;
+\$cfg['Servers'][\$i]['auth_type'] = 'cookie';
+\$cfg['Servers'][\$i]['host'] = '127.0.0.1';
+\$cfg['Servers'][\$i]['port'] = '3306';
+\$cfg['Servers'][\$i]['compress'] = false;
+\$cfg['Servers'][\$i]['AllowNoPassword'] = true;
+PMA;
+        @file_put_contents($pmaConfig, $config);
+    }
 }
 
 function status($process) {

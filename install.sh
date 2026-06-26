@@ -42,10 +42,26 @@ mkdir -p \
     ~/server/logs \
     ~/server/configs
 
-# Create phpMyAdmin symlink if installed
+# Configure phpMyAdmin if installed
 if [ -d "$PREFIX/share/phpmyadmin" ]; then
     ln -sf "$PREFIX/share/phpmyadmin" ~/server/sites/default/public_html/phpmyadmin
-    echo "[*] phpMyAdmin linked."
+    # Generate config that connects via TCP to avoid socket path issues
+    if [ ! -f "$PREFIX/share/phpmyadmin/config.inc.php" ]; then
+        BLOWFISH=$(php -r "echo bin2hex(random_bytes(16));" 2>/dev/null || echo "secretrandomkey123456")
+        cat > "$PREFIX/share/phpmyadmin/config.inc.php" <<PMAEOF
+<?php
+\$cfg['blowfish_secret'] = '$BLOWFISH';
+\$i = 0;
+\$i++;
+\$cfg['Servers'][\$i]['auth_type'] = 'cookie';
+\$cfg['Servers'][\$i]['host'] = '127.0.0.1';
+\$cfg['Servers'][\$i]['port'] = '3306';
+\$cfg['Servers'][\$i]['compress'] = false;
+\$cfg['Servers'][\$i]['AllowNoPassword'] = true;
+\$cfg['Servers'][\$i]['hide_db'] = '(information_schema|performance_schema|mysql|sys)';
+PMAEOF
+        echo "[*] phpMyAdmin configured (TCP 127.0.0.1:3306)."
+    fi
 fi
 
 echo "[*] Setting up File Manager..."

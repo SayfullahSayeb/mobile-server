@@ -11,7 +11,7 @@ if (is_file($secretFile)) {
 }
 
 if (!defined('CONTROL_PASSWORD_HASH')) {
-    define('CONTROL_PASSWORD_HASH', password_hash('admin', PASSWORD_BCRYPT));
+    define('CONTROL_PASSWORD_HASH', password_hash('', PASSWORD_BCRYPT));
 }
 
 session_start();
