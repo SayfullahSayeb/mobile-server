@@ -134,33 +134,44 @@ function saveSitesConfig(array $config): void {
 function getWpZip(): string {
     $cacheDir = HOME_DIR . '/server/wp-cache';
     $zipPath = $cacheDir . '/latest.zip';
+    $tmpPath = $cacheDir . '/latest.zip.tmp';
     $metaFile = $cacheDir . '/.meta';
     $ttl = 86400 * 7; // 7 days
 
     @mkdir($cacheDir, 0755, true);
 
-    $valid = false;
-    if (is_file($zipPath) && is_file($metaFile)) {
+    // Check if cached zip is still fresh
+    $meta = [];
+    if (is_file($metaFile)) {
         $meta = @json_decode(@file_get_contents($metaFile), true);
-        if (is_array($meta) && isset($meta['time'])) {
-            $valid = (time() - (int)$meta['time']) < $ttl;
-        }
+    }
+    $fresh = is_file($zipPath) && is_array($meta) && isset($meta['time']) && (time() - (int)$meta['time']) < $ttl;
+
+    if ($fresh) {
+        return $zipPath;
     }
 
-    if (!$valid) {
-        @unlink($metaFile);
-        exec("curl -sL https://wordpress.org/latest.zip -o " . escapeshellarg($zipPath) . " 2>&1", $raw, $rc);
-        if ($rc !== 0) {
-            if (is_file($zipPath)) {
-                // Keep stale zip as fallback
-                return $zipPath;
-            }
-            return '';
-        }
+    // Download fresh copy to temp file first
+    @unlink($tmpPath);
+    exec("curl -sL https://wordpress.org/latest.zip -o " . escapeshellarg($tmpPath) . " 2>&1", $raw, $rc);
+
+    if ($rc === 0 && is_file($tmpPath)) {
+        // Download succeeded — replace old zip
+        @unlink($zipPath);
+        rename($tmpPath, $zipPath);
         file_put_contents($metaFile, json_encode(['time' => time()]));
+        return $zipPath;
     }
 
-    return $zipPath;
+    // Download failed — clean up partial temp file
+    @unlink($tmpPath);
+
+    // Fall back to previous valid zip if it exists
+    if (is_file($zipPath)) {
+        return $zipPath;
+    }
+
+    return '';
 }
 
 function installWordPress(string $sitePath, string $siteName, string $wpUser, string $wpPass, string $wpEmail, string $wpTitle): array {
@@ -175,12 +186,12 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
 
     setProgress($siteName, 'Downloading WordPress...', 10);
     $zip = getWpZip();
-    if (!$zip) { clearProgress($siteName); return [false, 'Failed to download WordPress']; }
-    if (!is_file($zip)) { clearProgress($siteName); return [false, 'WordPress zip not found']; }
+    if (!$zip) { setProgress($siteName, 'Failed: could not download WordPress', 0, 'error'); return [false, 'Failed to download WordPress']; }
+    if (!is_file($zip)) { setProgress($siteName, 'Failed: WordPress zip not found', 0, 'error'); return [false, 'WordPress zip not found']; }
 
     setProgress($siteName, 'Extracting WordPress...', 30);
     exec("unzip -qo " . escapeshellarg($zip) . " -d " . escapeshellarg(dirname($sitePath)) . " 2>&1", $raw, $rc2);
-    if ($rc2 !== 0) { clearProgress($siteName); return [false, 'Failed to extract WordPress']; }
+    if ($rc2 !== 0) { setProgress($siteName, 'Failed: could not extract WordPress', 0, 'error'); return [false, 'Failed to extract WordPress']; }
     $wp_temp = dirname($sitePath) . '/wordpress';
     if (is_dir($wp_temp)) {
         exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($sitePath . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
@@ -195,7 +206,7 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
 
     setProgress($siteName, 'Configuring wp-config.php...', 75);
     $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
-    if (!$wp_config) { clearProgress($siteName); return [false, 'WordPress files missing after extraction']; }
+    if (!$wp_config) { setProgress($siteName, 'Failed: WordPress files missing after extraction', 0, 'error'); return [false, 'WordPress files missing after extraction']; }
     $wp_config = str_replace(
         ["'database_name_here'", "'username_here'", "'password_here'"],
         ["'$db_name'", "'$db_user'", "'$db_pass'"],
@@ -206,7 +217,7 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
         $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
     }
     if (file_put_contents($sitePath . '/wp-config.php', $wp_config) === false) {
-        clearProgress($siteName);
+        setProgress($siteName, 'Failed: could not write wp-config.php', 0, 'error');
         return [false, 'Failed to write wp-config.php'];
     }
     @chmod($sitePath, 0755);
@@ -449,7 +460,7 @@ if ($logged_in) {
                                 $label = ucfirst($type);
                                 $wpSuffix = $wpResult[0] && $type === 'wordpress' ? ' (<a href=\'' . $url . '/wp-admin/install.php\' style=\'color:#3b82f6\'>Complete setup</a>)' : '';
                                 $flash = [$wpResult[0] ? 'success' : 'error', "$label site '$name' created — <a href='$url' target='_blank' style='color:#3b82f6'>$url</a>" . $wpSuffix . ($wpResult[0] ? '' : ($wpResult[1] ? '<br>' . $wpResult[1] : ''))];
-                                setProgress($name, 'Done!', 100, 'done');
+                                if ($wpResult[0]) { setProgress($name, 'Done!', 100, 'done'); }
                                 panelLog("Created $type site '$name' at $domain:$port");
                             }
                         }

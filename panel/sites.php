@@ -283,6 +283,10 @@ function submitSiteForm(form) {
           if (p.step && p.step !== 'unknown') {
             status.textContent = p.step;
           }
+          if (p.status === 'error') {
+            status.textContent = p.step || 'Error during installation';
+            document.getElementById('progressTitle').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:var(--red)"></i> Installation Failed';
+          }
           if (p.pct) {
             var pc = Math.min(parseInt(p.pct), 99);
             bar.style.width = pc + '%';
