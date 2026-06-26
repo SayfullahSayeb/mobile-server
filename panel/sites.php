@@ -177,7 +177,7 @@ ksort($allSites);
       </label>
       <div class="modal-footer" style="margin-top:14px">
         <button type="button" class="btn btn-d" onclick="closeDeleteModal()">Cancel</button>
-        <button type="submit" class="btn btn-d" style="background:var(--red)">Delete</button>
+        <button type="submit" class="btn btn-d" style="background:var(--red);color:#fff">Delete</button>
       </div>
     </form>
   </div>
