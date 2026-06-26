@@ -388,7 +388,6 @@ if ($logged_in) {
             } else {
                 $flash = ['error', "Invalid site name"];
             }
-            }
         } elseif ($action === 'toggle_site') {
             $name = trim($_POST['site_name'] ?? '');
             $config = getSitesConfig();
