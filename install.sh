@@ -4,29 +4,31 @@ set -e
 
 echo "Installing Mobile Server..."
 
-pkg update -y
-pkg upgrade -y
+pkg update -y && pkg upgrade -y
 
 pkg install -y \
-openssh \
-iproute2 \
-nginx \
-php \
-php-fpm \
-mariadb \
-git \
-curl \
-wget \
-unzip \
-tar
+    openssh \
+    iproute2 \
+    nginx \
+    php \
+    php-fpm \
+    mariadb \
+    git \
+    curl \
+    wget \
+    unzip \
+    tar
 
-mkdir -p ~/server/sites/default/public_html ~/server/backups ~/server/logs ~/server/configs
+mkdir -p \
+    ~/server/sites/default/public_html \
+    ~/server/backups \
+    ~/server/logs \
+    ~/server/configs
 
 cat > ~/server/sites/default/public_html/index.php <<'EOF'
 <?php
-echo "<h1>🎉 Mobile Server</h1>";
-echo "<p>Installation successful.</p>";
-echo "<strong>PHP ".phpversion()."</strong>";
+phpinfo();
+?>
 EOF
 
 PHP_SOCKET=$(grep '^listen =' $PREFIX/etc/php-fpm.d/www.conf | awk '{print $3}')
