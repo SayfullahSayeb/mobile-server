@@ -51,7 +51,6 @@ margin-bottom:4px;
 .subtitle{
 text-align:center;
 color:#64748b;
-font-size:14px;
 margin-bottom:32px;
 }
 .item{
@@ -63,7 +62,6 @@ border-bottom:1px solid rgba(51,65,85,.5);
 }
 .item:last-child{border:none}
 .name{
-font-size:15px;
 font-weight:500;
 color:#e2e8f0;
 }
@@ -71,7 +69,6 @@ color:#e2e8f0;
 display:flex;
 align-items:center;
 gap:8px;
-font-size:14px;
 font-weight:600;
 }
 .dot{
@@ -93,7 +90,6 @@ color:#fff;
 text-decoration:none;
 border-radius:12px;
 font-weight:600;
-font-size:14px;
 transition:transform .2s,box-shadow .2s;
 box-shadow:0 4px 20px rgba(59,130,246,.3);
 }

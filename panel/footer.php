@@ -13,6 +13,10 @@ function copyUrl(text) {
         alert('URL copied to clipboard');
     });
 }
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('show');
+    document.querySelector('.sb-overlay').classList.toggle('show');
+}
 </script>
 <footer class="tc tm ts" style="padding:12px 0 4px">Mobile Server — Nginx &bull; PHP-FPM &bull; MariaDB</footer>
 </div>

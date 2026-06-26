@@ -19,7 +19,8 @@ function csrf(): string {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
-<div class="sidebar">
+<div class="sb-overlay" onclick="toggleSidebar()"></div>
+<div class="sidebar" id="sidebar">
   <div class="sb-brand">
     <div class="sb-logo">MS</div>
     <div>
@@ -28,33 +29,24 @@ function csrf(): string {
     </div>
   </div>
   <div class="sb-nav">
-    <div class="nav-sec">Overview</div>
     <a href="?tab=dashboard" class="nav-i <?= $tab==='dashboard'?'act':'' ?>">
       <span class="ni"><i class="fas fa-chart-bar"></i></span><span class="nl">Dashboard</span>
     </a>
-    <div class="nav-sec">Web</div>
     <a href="?tab=sites" class="nav-i <?= $tab==='sites'?'act':'' ?>">
       <span class="ni"><i class="fas fa-globe"></i></span><span class="nl">Sites</span>
     </a>
-    <a href="?tab=wordpress" class="nav-i <?= $tab==='wordpress'?'act':'' ?>">
-      <span class="ni"><i class="fab fa-wordpress"></i></span><span class="nl">WordPress</span>
-    </a>
-    <div class="nav-sec">Network</div>
     <a href="?tab=cloudflare" class="nav-i <?= $tab==='cloudflare'?'act':'' ?>">
       <span class="ni"><i class="fas fa-cloud"></i></span><span class="nl">Cloudflare</span>
     </a>
-    <div class="nav-sec">System</div>
     <a href="?tab=files" class="nav-i <?= $tab==='files'?'act':'' ?>">
       <span class="ni"><i class="fas fa-folder"></i></span><span class="nl">File Manager</span>
-    </a>
-    <a href="?tab=update" class="nav-i <?= $tab==='update'?'act':'' ?>">
-      <span class="ni"><i class="fas fa-sync-alt"></i></span><span class="nl">Update</span>
     </a>
   </div>
   <div class="sb-foot">Mobile Server v1.0</div>
 </div>
 <div class="main">
   <div class="topbar">
+    <button class="hamburger" onclick="toggleSidebar()" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
     <div class="tbl">
       <div class="tb-title"><?= ucfirst($tab) ?></div>
       <div class="tb-bread">/ <span><?= $tab ?></span></div>

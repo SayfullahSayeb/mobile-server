@@ -17,11 +17,10 @@ if (empty($_SESSION['authenticated'])) {
 html,body{height:100%;overflow:hidden;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
 #elfinder{height:100%}
 #toolbar-top{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:rgba(30,41,59,.8);backdrop-filter:blur(12px);border-bottom:1px solid rgba(148,163,184,.08);gap:12px;flex-wrap:wrap}
-#toolbar-top .title{font-size:15px;font-weight:600;color:#e2e8f0;letter-spacing:-.3px}
-#site-selector{padding:7px 14px;border:1px solid rgba(51,65,85,.6);border-radius:8px;background:rgba(15,23,42,.8);color:#e2e8f0;font-size:13px;outline:none;cursor:pointer;font-family:inherit;min-width:160px}
+#toolbar-top .title{font-size:16px;font-weight:600;color:#e2e8f0;letter-spacing:-.3px}
+#site-selector{padding:7px 14px;border:1px solid rgba(51,65,85,.6);border-radius:8px;background:rgba(15,23,42,.8);color:#e2e8f0;font-size:16px;outline:none;cursor:pointer;font-family:inherit;min-width:160px}
 #site-selector:focus{border-color:#3b82f6}
 #site-selector option{background:#1e293b;color:#e2e8f0}
-@media(max-width:600px){#toolbar-top{padding:8px 12px}#site-selector{min-width:120px;font-size:12px}}
 </style>
 </head>
 <body>

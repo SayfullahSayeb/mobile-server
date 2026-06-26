@@ -22,10 +22,10 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 
   <?php if ($tunnelLoginStatus === 'pending'): ?>
   <div style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);padding:14px;margin-bottom:14px">
-    <div style="color:var(--orange);font-size:13px;font-weight:600;margin-bottom:6px"><i class="fas fa-hourglass-half"></i> Authentication in Progress</div>
+    <div style="color:var(--orange);font-weight:600;margin-bottom:6px"><i class="fas fa-hourglass-half"></i> Authentication in Progress</div>
     <?php if ($tunnelLoginUrl): ?>
     <div class="ts tm mb2">Open this URL in a browser to authenticate with Cloudflare:</div>
-    <div style="background:rgba(15,23,42,.5);padding:8px 12px;border-radius:var(--rs);word-break:break-all;font-size:11px;color:var(--blue);font-family:monospace;margin-bottom:8px"><?= htmlspecialchars($tunnelLoginUrl) ?></div>
+    <div style="background:rgba(15,23,42,.5);padding:8px 12px;border-radius:var(--rs);word-break:break-all;color:var(--blue);font-family:monospace;margin-bottom:8px"><?= htmlspecialchars($tunnelLoginUrl) ?></div>
     <?php endif; ?>
     <div class="ts tm mb2">After authenticating, click "Check Status" below.</div>
     <form method="post">
@@ -53,7 +53,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       <button type="submit" class="btn btn-d btn-s" onclick="return confirm('Logout from Cloudflare? This will remove stored credentials.')"><i class="fas fa-times"></i> Logout</button>
     </form>
   </div>
-  <div style="color:var(--green);font-size:13px;margin-top:6px"><i class="fas fa-check"></i> Authenticated with Cloudflare</div>
+  <div style="color:var(--green);margin-top:6px"><i class="fas fa-check"></i> Authenticated with Cloudflare</div>
 </div>
 
 <div class="sec">
@@ -65,7 +65,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
   <div class="di">
     <div>
       <div class="sn"><?= htmlspecialchars($t['name']) ?></div>
-      <div style="font-size:10px;color:var(--text3);margin-top:2px">ID: <?= htmlspecialchars(substr($t['id'], 0, 8)) ?>... | Status: <?= htmlspecialchars($t['status'] ?: 'unknown') ?></div>
+      <div style="color:var(--text3);margin-top:2px">ID: <?= htmlspecialchars(substr($t['id'], 0, 8)) ?>... | Status: <?= htmlspecialchars($t['status'] ?: 'unknown') ?></div>
     </div>
     <div class="df ac g2">
       <?php if ($isActive): ?>
@@ -119,8 +119,8 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
     <div class="st2">Public URLs</div>
     <?php foreach ($ts['urls'] as $url): ?>
     <div class="df ac g2" style="background:rgba(15,23,42,.4);padding:8px 12px;border-radius:var(--rs);margin-bottom:5px">
-      <a href="https://<?= htmlspecialchars($url) ?>" target="_blank" style="color:var(--blue);font-size:12px;font-weight:600;text-decoration:none;flex:1;word-break:break-all"><?= htmlspecialchars($url) ?></a>
-      <button onclick="copyUrl('<?= htmlspecialchars($url) ?>')" style="background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.2);border-radius:5px;padding:3px 8px;cursor:pointer;font-size:10px;font-weight:600;font-family:inherit">Copy</button>
+      <a href="https://<?= htmlspecialchars($url) ?>" target="_blank" style="color:var(--blue);font-weight:600;text-decoration:none;flex:1;word-break:break-all"><?= htmlspecialchars($url) ?></a>
+      <button onclick="copyUrl('<?= htmlspecialchars($url) ?>')" style="background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.2);border-radius:5px;padding:3px 8px;cursor:pointer;font-weight:600;font-family:inherit">Copy</button>
     </div>
     <?php endforeach; ?>
   </div>
@@ -137,7 +137,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
   <div class="di">
     <div>
       <div class="sn"><?= htmlspecialchars($hostname) ?></div>
-      <div style="font-size:10px;color:var(--text3);margin-top:2px">→ <?= htmlspecialchars($target) ?></div>
+      <div style="color:var(--text3);margin-top:2px">→ <?= htmlspecialchars($target) ?></div>
     </div>
     <form method="post" style="display:inline" onsubmit="return confirm('Remove hostname <?= htmlspecialchars($hostname) ?>?')">
       <?= csrf() ?>
@@ -171,7 +171,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
   <form method="post">
     <?= csrf() ?>
     <input type="hidden" name="action" value="tunnel_set_autostart">
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text)">
       <input type="checkbox" name="auto_start" value="1" <?= $tunnelAutoStart ? 'checked' : '' ?> onchange="this.form.submit()" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer">
       Automatically start tunnel when Mobile Server starts
     </label>
@@ -212,9 +212,9 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
     </div>
     <?php if (!empty($tunnelHealth['issues'])): ?>
     <div style="background:rgba(15,23,42,.5);border:1px solid rgba(239,68,68,.2);padding:12px;border-radius:var(--rs);grid-column:1/-1">
-      <div style="font-size:9px;color:var(--red);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Issues</div>
+      <div style="color:var(--red);text-transform:uppercase;letter-spacing:.8px;font-weight:600">Issues</div>
       <?php foreach ($tunnelHealth['issues'] as $issue): ?>
-      <div style="font-size:12px;color:var(--red);margin-top:4px">• <?= htmlspecialchars($issue) ?></div>
+      <div style="color:var(--red);margin-top:4px">• <?= htmlspecialchars($issue) ?></div>
       <?php endforeach; ?>
     </div>
     <?php endif; ?>

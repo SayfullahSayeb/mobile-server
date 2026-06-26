@@ -70,6 +70,11 @@ require_once __DIR__ . '/lib/TunnelManager.php';
 $tunnelProvider = new CloudflareTunnelProvider();
 $tunnelManager = new TunnelManager($tunnelProvider, CONFIG_DIR);
 
+if (isset($_GET['tab']) && $_GET['tab'] === 'update' && isset($_GET['action']) && $_GET['action'] === 'stream') {
+    include __DIR__ . '/panel/update_stream.php';
+    exit;
+}
+
 function getSitesConfig(): array {
     if (!is_file(SITES_JSON)) return [];
     $data = json_decode(file_get_contents(SITES_JSON), true);
@@ -82,6 +87,39 @@ function saveSitesConfig(array $config): void {
         @mkdir($dir, 0755, true);
     }
     file_put_contents(SITES_JSON, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+}
+
+function installWordPress(string $sitePath, string $siteName, string $wpUser, string $wpPass, string $wpEmail, string $wpTitle): array {
+    global $db_user, $db_pass;
+    $zip = HOME_DIR . '/server/wp.zip';
+    exec("curl -sL https://wordpress.org/latest.zip -o " . escapeshellarg($zip) . " 2>&1", $raw, $rc);
+    if ($rc !== 0) return [false, 'Failed to download WordPress'];
+    exec("unzip -qo " . escapeshellarg($zip) . " -d " . escapeshellarg(dirname($sitePath)) . " 2>&1", $raw, $rc2);
+    if ($rc2 !== 0) { @unlink($zip); return [false, 'Failed to extract WordPress']; }
+    $wp_temp = dirname($sitePath) . '/wordpress';
+    if (is_dir($wp_temp)) {
+        exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($sitePath . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
+    }
+    $db_name = 'wp_' . str_replace('-', '_', $siteName);
+    exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
+    exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
+    exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
+    $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
+    if ($wp_config) {
+        $wp_config = str_replace(
+            ["'database_name_here'", "'username_here'", "'password_here'"],
+            ["'$db_name'", "'$db_user'", "'$db_pass'"],
+            $wp_config
+        );
+        foreach (['AUTH_KEY','SECURE_AUTH_KEY','LOGGED_IN_KEY','NONCE_KEY','AUTH_SALT','SECURE_AUTH_SALT','LOGGED_IN_SALT','NONCE_SALT'] as $key) {
+            $val = bin2hex(random_bytes(16));
+            $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
+        }
+        file_put_contents($sitePath . '/wp-config.php', $wp_config);
+    }
+    @chmod($sitePath, 0755);
+    @unlink($zip);
+    return [true, ''];
 }
 
 function getNextPort(): int {
@@ -197,11 +235,12 @@ if ($logged_in) {
         } elseif ($action === 'create_site') {
             $name = trim($_POST['site_name'] ?? '');
             $domain = trim($_POST['site_domain'] ?? '');
+            $type = trim($_POST['site_type'] ?? 'static');
             if (!$domain) $domain = $name . '.test';
             if (!preg_match('/^[a-z0-9_-]+$/', $name)) {
                 $flash = ['error', 'Invalid site name (use a-z, 0-9, -, _)'];
-            } elseif (!preg_match('/^[a-z0-9_-]+(\.[a-z0-9_-]+)+$/i', $domain)) {
-                $flash = ['error', 'Invalid domain (e.g. mysite.test)'];
+            } elseif (!in_array($type, ['static', 'wordpress'], true)) {
+                $flash = ['error', 'Invalid site type'];
             } else {
                 $siteDir = SITES_DIR . '/' . $name;
                 $publicHtml = $siteDir . '/public_html';
@@ -209,7 +248,6 @@ if ($logged_in) {
                     $flash = ['error', "Site '$name' already exists"];
                 } else {
                     @mkdir($publicHtml, 0755, true);
-                    file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
                     $port = getNextPort();
                     $config = getSitesConfig();
                     $config[$name] = [
@@ -217,6 +255,7 @@ if ($logged_in) {
                         'port' => $port,
                         'path' => $publicHtml,
                         'enabled' => true,
+                        'type' => $type,
                         'created' => date('Y-m-d H:i:s')
                     ];
                     saveSitesConfig($config);
@@ -224,8 +263,26 @@ if ($logged_in) {
                     $block = generateNginxBlock($domain, $port, $publicHtml);
                     file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                     rewriteNginxMainConfig();
+                    $wpResult = [true, ''];
+                    if ($type === 'wordpress') {
+                        $wpUser = trim($_POST['wp_user'] ?? 'admin');
+                        $wpPass = trim($_POST['wp_pass'] ?? '');
+                        $wpEmail = trim($_POST['wp_email'] ?? 'admin@localhost.local');
+                        $wpTitle = trim($_POST['wp_title'] ?? 'My Site');
+                        if (!$wpPass || strlen($wpPass) < 6) {
+                            $flash = ['error', 'WordPress password must be at least 6 characters'];
+                        } else {
+                            $wpResult = installWordPress($publicHtml, $name, $wpUser, $wpPass, $wpEmail, $wpTitle);
+                        }
+                    } else {
+                        file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
+                    }
                     restartNginx();
-                    $flash = ['success', "Site '$name' created — <a href='http://$domain:$port' target='_blank' style='color:#3b82f6'>http://$domain:$port</a>"];
+                    if (!isset($flash)) {
+                        $url = "http://$domain:$port";
+                        $wpSuffix = $type === 'wordpress' ? ' (<a href=\'' . $url . '/wp-admin/install.php\' style=\'color:#3b82f6\'>Complete setup</a>)' : '';
+                        $flash = [$wpResult[0] ? 'success' : 'error', ($wpResult[0] ? ucfirst($type) : 'Static') . " site '$name' created — <a href='$url' target='_blank' style='color:#3b82f6'>$url</a>" . ($wpResult[0] ? $wpSuffix : '') . ($wpResult[0] ? '' : ($wpResult[1] ? '<br>' . $wpResult[1] : ''))];
+                    }
                 }
             }
         } elseif ($action === 'delete_site') {
@@ -263,6 +320,22 @@ if ($logged_in) {
                 $flash = ['success', "Site '$name' " . ($config[$name]['enabled'] ? 'enabled' : 'disabled')];
             } else {
                 $flash = ['error', "Site '$name' not found in config"];
+            }
+        } elseif ($action === 'edit_site') {
+            $name = trim($_POST['site_name_orig'] ?? '');
+            $domain = trim($_POST['site_domain'] ?? '');
+            $type = trim($_POST['site_type'] ?? 'static');
+            $config = getSitesConfig();
+            if (isset($config[$name])) {
+                $config[$name]['domain'] = $domain;
+                $config[$name]['type'] = $type;
+                saveSitesConfig($config);
+                $target = NGINX_SITES_DIR . '/' . $name . '.conf';
+                file_put_contents($target, generateNginxBlock($domain, $config[$name]['port'], $config[$name]['path']));
+                restartNginx();
+                $flash = ['success', "Site '$name' updated"];
+            } else {
+                $flash = ['error', "Site '$name' not found"];
             }
         } elseif ($action === 'update_hosts') {
             $hostsPath = '/data/data/com.termux/files/usr/etc/hosts';
@@ -421,6 +494,8 @@ if ($logged_in) {
             $home_server = HOME_DIR . '/server';
             $elfinder_dir = $target_dir . '/elfinder';
             if (!is_dir($elfinder_dir)) @mkdir($elfinder_dir, 0755, true);
+            $panel_dir = $target_dir . '/panel';
+            if (!is_dir($panel_dir)) @mkdir($panel_dir, 0755, true);
             $files = [
                 'index.php' => $target_dir . '/index.php',
                 'control.php' => $target_dir . '/control.php',
@@ -430,6 +505,16 @@ if ($logged_in) {
                 'lib/TunnelManager.php' => $lib_dir . '/TunnelManager.php',
                 'elfinder/panel.php' => $elfinder_dir . '/panel.php',
                 'elfinder/connector.php' => $elfinder_dir . '/connector.php',
+                'panel/header.php' => $panel_dir . '/header.php',
+                'panel/dashboard.php' => $panel_dir . '/dashboard.php',
+                'panel/cloudflare.php' => $panel_dir . '/cloudflare.php',
+                'panel/sites.php' => $panel_dir . '/sites.php',
+                'panel/wordpress.php' => $panel_dir . '/wordpress.php',
+                'panel/update.php' => $panel_dir . '/update.php',
+                'panel/login.php' => $panel_dir . '/login.php',
+                'panel/footer.php' => $panel_dir . '/footer.php',
+                'panel/control.css' => $panel_dir . '/control.css',
+                'panel/update_stream.php' => $panel_dir . '/update_stream.php',
             ];
             $results = [];
             $all_ok = true;
