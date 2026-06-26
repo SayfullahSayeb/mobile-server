@@ -260,6 +260,7 @@ function submitSiteForm(form) {
     return false;
   }
 
+  var siteName = document.getElementById('siteName').value;
   var data = new FormData(form);
   var modal = document.getElementById('progressModal');
   var bar = document.getElementById('progressBar');
@@ -270,30 +271,49 @@ function submitSiteForm(form) {
   document.getElementById('progressTitle').innerHTML = '<i class="fas fa-cog fa-spin"></i> Creating ' + (isWp ? 'WordPress' : 'Static') + ' Site...';
   document.getElementById('submitBtn').disabled = true;
 
-  // Animate bar while waiting
-  var anim = 5;
-  var animInterval = setInterval(function() {
-    if (anim < 90) {
-      anim += Math.random() * 8;
-      if (anim > 90) anim = 90;
-      bar.style.width = anim + '%';
-      pct.textContent = Math.round(anim) + '%';
-    }
-  }, 1000);
+  status.textContent = isWp ? 'Preparing...' : 'Creating site...';
 
-  status.textContent = isWp ? 'Downloading & installing WordPress...' : 'Creating site...';
+  // Poll real progress from server
+  var pollInterval = null;
+  if (isWp && siteName) {
+    pollInterval = setInterval(function() {
+      fetch('?wp_progress=' + encodeURIComponent(siteName))
+        .then(function(r) { return r.json(); })
+        .then(function(p) {
+          if (p.step && p.step !== 'unknown') {
+            status.textContent = p.step;
+          }
+          if (p.pct) {
+            var pc = Math.min(parseInt(p.pct), 99);
+            bar.style.width = pc + '%';
+            pct.textContent = pc + '%';
+          }
+        }).catch(function() {});
+    }, 1000);
+  } else {
+    // Static site: animate a simple progress
+    var anim = 10;
+    pollInterval = setInterval(function() {
+      if (anim < 90) {
+        anim += Math.random() * 12;
+        if (anim > 90) anim = 90;
+        bar.style.width = anim + '%';
+        pct.textContent = Math.round(anim) + '%';
+      }
+    }, 800);
+  }
 
   fetch(window.location.href, {
     method: 'POST',
     body: data
   }).then(function(r) { return r.text(); }).then(function() {
-    clearInterval(animInterval);
+    if (pollInterval) clearInterval(pollInterval);
     bar.style.width = '100%';
     pct.textContent = '100%';
     status.textContent = 'Done! Reloading...';
     setTimeout(function() { location.reload(); }, 600);
   }).catch(function(err) {
-    clearInterval(animInterval);
+    if (pollInterval) clearInterval(pollInterval);
     status.textContent = 'Error: ' + err;
     document.getElementById('submitBtn').disabled = false;
   });

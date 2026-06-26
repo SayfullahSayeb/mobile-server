@@ -87,6 +87,36 @@ if (isset($_GET['tab']) && $_GET['tab'] === 'update' && isset($_GET['action']) &
     exit;
 }
 
+// Progress tracking for long operations
+define('PROGRESS_DIR', HOME_DIR . '/server/tmp');
+
+function setProgress(string $siteName, string $step, int $pct, string $status = 'working'): void {
+    @mkdir(PROGRESS_DIR, 0755, true);
+    @file_put_contents(PROGRESS_DIR . '/progress_' . $siteName . '.json', json_encode([
+        'step' => $step,
+        'pct' => $pct,
+        'status' => $status,
+        'time' => time()
+    ]));
+}
+
+function clearProgress(string $siteName): void {
+    @unlink(PROGRESS_DIR . '/progress_' . $siteName . '.json');
+}
+
+// Progress poll endpoint
+if (isset($_GET['wp_progress'])) {
+    header('Content-Type: application/json');
+    $site = preg_replace('/[^a-z0-9_-]/', '', $_GET['wp_progress']);
+    $file = PROGRESS_DIR . '/progress_' . $site . '.json';
+    if (is_file($file)) {
+        echo file_get_contents($file);
+    } else {
+        echo json_encode(['step' => 'unknown', 'pct' => 0, 'status' => 'unknown']);
+    }
+    exit;
+}
+
 function getSitesConfig(): array {
     if (!is_file(SITES_JSON)) return [];
     $data = json_decode(file_get_contents(SITES_JSON), true);
@@ -118,9 +148,13 @@ function getWpZip(): string {
     }
 
     if (!$valid) {
+        @unlink($metaFile);
         exec("curl -sL https://wordpress.org/latest.zip -o " . escapeshellarg($zipPath) . " 2>&1", $raw, $rc);
         if ($rc !== 0) {
-            if (is_file($zipPath)) return $zipPath;
+            if (is_file($zipPath)) {
+                // Keep stale zip as fallback
+                return $zipPath;
+            }
             return '';
         }
         file_put_contents($metaFile, json_encode(['time' => time()]));
@@ -132,29 +166,36 @@ function getWpZip(): string {
 function installWordPress(string $sitePath, string $siteName, string $wpUser, string $wpPass, string $wpEmail, string $wpTitle): array {
     global $db_user, $db_pass;
 
+    @set_time_limit(0);
+    setProgress($siteName, 'Preparing site...', 5);
+
     if (!is_dir($sitePath)) {
         @mkdir($sitePath, 0755, true);
     }
 
+    setProgress($siteName, 'Downloading WordPress...', 10);
     $zip = getWpZip();
-    if (!$zip) return [false, 'Failed to download WordPress'];
-    if (!is_file($zip)) return [false, 'WordPress zip not found'];
+    if (!$zip) { clearProgress($siteName); return [false, 'Failed to download WordPress']; }
+    if (!is_file($zip)) { clearProgress($siteName); return [false, 'WordPress zip not found']; }
 
+    setProgress($siteName, 'Extracting WordPress...', 30);
     exec("unzip -qo " . escapeshellarg($zip) . " -d " . escapeshellarg(dirname($sitePath)) . " 2>&1", $raw, $rc2);
-    if ($rc2 !== 0) return [false, 'Failed to extract WordPress'];
+    if ($rc2 !== 0) { clearProgress($siteName); return [false, 'Failed to extract WordPress']; }
     $wp_temp = dirname($sitePath) . '/wordpress';
     if (is_dir($wp_temp)) {
         exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($sitePath . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
     }
 
+    setProgress($siteName, 'Setting up database...', 50);
     $db_name = 'wp_' . str_replace('-', '_', $siteName);
     exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
     exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
     exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
     exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
 
+    setProgress($siteName, 'Configuring wp-config.php...', 75);
     $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
-    if (!$wp_config) return [false, 'WordPress files missing after extraction'];
+    if (!$wp_config) { clearProgress($siteName); return [false, 'WordPress files missing after extraction']; }
     $wp_config = str_replace(
         ["'database_name_here'", "'username_here'", "'password_here'"],
         ["'$db_name'", "'$db_user'", "'$db_pass'"],
@@ -165,9 +206,11 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
         $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
     }
     if (file_put_contents($sitePath . '/wp-config.php', $wp_config) === false) {
+        clearProgress($siteName);
         return [false, 'Failed to write wp-config.php'];
     }
     @chmod($sitePath, 0755);
+    setProgress($siteName, 'Finalizing...', 95);
     return [true, ''];
 }
 
@@ -347,7 +390,6 @@ if ($logged_in) {
             } else {
                 $siteDir = SITES_DIR . '/' . $name;
                 $publicHtml = $siteDir . '/public_html';
-                // Clean up stale dir if it exists (e.g. from a previous delete with files kept)
                 if (is_dir($siteDir)) {
                     exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
                 }
@@ -355,6 +397,7 @@ if ($logged_in) {
                     if ($port === 0) {
                         $flash = ['error', 'No available port (all 8081-8999 are in use)'];
                     } else {
+                        setProgress($name, 'Creating site directory...', 5);
                         @mkdir($publicHtml, 0755, true);
                         $block = generateNginxBlock($domain, $port, $publicHtml);
                         if ($block === '') {
@@ -373,7 +416,6 @@ if ($logged_in) {
                             if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
                             file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                             rewriteNginxMainConfig();
-                            // Write a default index so site never 403s (WordPress will overwrite it)
                             file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
                             $wpResult = [true, ''];
                             if ($type === 'wordpress') {
@@ -383,22 +425,31 @@ if ($logged_in) {
                                 $wpTitle = ucwords(str_replace(['-', '_'], ' ', $name));
                                 if (!$wpPass || strlen($wpPass) < 6) {
                                     $flash = ['error', 'WordPress password must be at least 6 characters'];
+                                    clearProgress($name);
                                 } else {
+                                    setProgress($name, 'Starting WordPress installation...', 3);
                                     $wpResult = installWordPress($publicHtml, $name, $wpUser, $wpPass, $wpEmail, $wpTitle);
                                 }
+                            } else {
+                                clearProgress($name);
                             }
-                            $restartOk = reloadNginx();
-                            if (!$restartOk) {
-                                $restartOk = restartNginx();
-                            }
-                            if (!$restartOk) {
-                                $flash = ['error', "Site '$name' created but nginx failed to restart — run 'nginx -t' in Termux to diagnose"];
+                            if (!isset($flash)) {
+                                setProgress($name, 'Restarting nginx...', 97);
+                                $restartOk = reloadNginx();
+                                if (!$restartOk) {
+                                    $restartOk = restartNginx();
+                                }
+                                if (!$restartOk) {
+                                    clearProgress($name);
+                                    $flash = ['error', "Site '$name' created but nginx failed to restart — run 'nginx -t' in Termux to diagnose"];
+                                }
                             }
                             if (!isset($flash)) {
                                 $url = "http://$domain:$port";
                                 $label = ucfirst($type);
                                 $wpSuffix = $wpResult[0] && $type === 'wordpress' ? ' (<a href=\'' . $url . '/wp-admin/install.php\' style=\'color:#3b82f6\'>Complete setup</a>)' : '';
                                 $flash = [$wpResult[0] ? 'success' : 'error', "$label site '$name' created — <a href='$url' target='_blank' style='color:#3b82f6'>$url</a>" . $wpSuffix . ($wpResult[0] ? '' : ($wpResult[1] ? '<br>' . $wpResult[1] : ''))];
+                                setProgress($name, 'Done!', 100, 'done');
                                 panelLog("Created $type site '$name' at $domain:$port");
                             }
                         }
