@@ -60,7 +60,7 @@ define('NGINX_SITES_DIR', CONFIG_DIR . '/nginx-sites');
 define('SITES_JSON', CONFIG_DIR . '/sites.json');
 define('PHP_SOCKET', (function () {
     $s = trim(@exec('grep "^listen =" /data/data/com.termux/files/usr/etc/php-fpm.d/www.conf 2>/dev/null | awk "{print \$3}"') ?: '');
-    if ($s && !str_starts_with($s, 'unix:') && !str_contains($s, ':')) {
+    if ($s && strpos($s, 'unix:') !== 0 && strpos($s, ':') === false) {
         $s = 'unix:' . $s;
     }
     return $s ?: 'unix:/data/data/com.termux/files/usr/var/run/php-fpm.sock';
@@ -562,7 +562,7 @@ if ($logged_in) {
                         );
                         foreach ($iterator as $file) {
                             $relPath = substr($file->getPathname(), strlen($tmp_dir) + 1);
-                            if (str_starts_with($relPath, '.git') || str_starts_with($relPath, '.git/')) continue;
+                            if (strpos($relPath, '.git') === 0 || strpos($relPath, '.git/') === 0) continue;
                             if ($file->isDir()) continue;
                             $dest = $target_dir . '/' . $relPath;
                             $destDir = dirname($dest);

@@ -53,7 +53,7 @@ $iterator = new RecursiveIteratorIterator(
 );
 foreach ($iterator as $file) {
     $relPath = substr($file->getPathname(), strlen($tmp_dir) + 1);
-    if (str_starts_with($relPath, '.git') || str_starts_with($relPath, '.git/')) continue;
+    if (strpos($relPath, '.git') === 0 || strpos($relPath, '.git/') === 0) continue;
     if ($file->isDir()) continue;
     $files[] = $relPath;
 }
