@@ -45,26 +45,27 @@ case "${1:-}" in
         TARGET_DIR="$HOME_DIR/server/sites/default/public_html"
         TMP_DIR="$(mktemp -d 2>/dev/null || echo "/tmp/mobile-server-update")"
         REPO_URL="https://github.com/SayfullahSayeb/mobile-server.git"
+        HASH_FILE="$HOME_DIR/server/configs/.update_hash"
 
         echo "Updating Mobile Server from GitHub..."
         echo
 
-        rm -rf "$TMP_DIR" 2>/dev/null
+        LATEST_HASH=$(git ls-remote "$REPO_URL" HEAD 2>/dev/null | awk '{print $1}')
+        if [ -z "$LATEST_HASH" ]; then
+            echo "[!] Failed to check for updates — no internet connection?"
+            exit 1
+        fi
+
+        if [ -f "$HASH_FILE" ] && [ "$(cat "$HASH_FILE")" = "$LATEST_HASH" ]; then
+            echo "  Already up to date (commit ${LATEST_HASH:0:8})."
+            echo
+            echo "No update needed."
+            exit 0
+        fi
+
         if git clone --depth 1 "$REPO_URL" "$TMP_DIR" 2>/dev/null; then
             echo "  Cloned repository."
-
-            # Install elfinder files (downloaded separately)
-            ELFINDER_VER="2.1.69"
-            ELDEST="$TARGET_DIR/elfinder/php"
-            rm -rf /tmp/elfinder.zip /tmp/elFinder-$ELFINDER_VER/ 2>/dev/null
-            curl -fsSL --retry 3 "https://github.com/Studio-42/elFinder/archive/refs/tags/$ELFINDER_VER.zip" -o /tmp/elfinder.zip 2>/dev/null
-            if [ -f /tmp/elfinder.zip ] && unzip -qo /tmp/elfinder.zip -d /tmp/ 2>/dev/null; then
-                rm -rf "$ELDEST" 2>/dev/null
-                cp -r "/tmp/elFinder-$ELFINDER_VER/php" "$ELDEST" 2>/dev/null
-                printf "  \xE2\x9C\x93 Updated elFinder library\n"
-            else
-                printf "  [!] elFinder library download failed\n"
-            fi
+            echo "$LATEST_HASH" > "$HASH_FILE"
 
             # Copy all files from repo (skip .git)
             for item in "$TMP_DIR"/* "$TMP_DIR"/.[!.]*; do
@@ -80,8 +81,6 @@ case "${1:-}" in
                 cp "$TMP_DIR/mobile-server" "$CLI_DEST" 2>/dev/null
                 chmod +x "$CLI_DEST" 2>/dev/null
                 printf "  \xE2\x9C\x93 Updated CLI\n"
-            else
-                printf "  [!] Failed to update CLI\n"
             fi
 
             rm -rf "$TMP_DIR" 2>/dev/null

@@ -539,37 +539,54 @@ if ($logged_in) {
             $target_dir = __DIR__;
             $tmp_dir = '/tmp/mobile-server-update-' . bin2hex(random_bytes(4));
             $repo_url = 'https://github.com/SayfullahSayeb/mobile-server.git';
-            @mkdir($tmp_dir, 0755, true);
-            exec("git clone --depth 1 " . escapeshellarg($repo_url) . " " . escapeshellarg($tmp_dir) . " 2>&1", $raw, $rc);
+            $hash_file = CONFIG_DIR . '/.update_hash';
             $results = [];
             $all_ok = true;
-            if ($rc === 0) {
-                $results[] = '<i class="fas fa-check"></i> Repository cloned';
-                $iterator = new RecursiveIteratorIterator(
-                    new RecursiveDirectoryIterator($tmp_dir, RecursiveDirectoryIterator::SKIP_DOTS)
-                );
-                foreach ($iterator as $file) {
-                    $relPath = substr($file->getPathname(), strlen($tmp_dir) + 1);
-                    if (str_starts_with($relPath, '.git') || str_starts_with($relPath, '.git/')) continue;
-                    if ($file->isDir()) continue;
-                    $dest = $target_dir . '/' . $relPath;
-                    $destDir = dirname($dest);
-                    if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
-                    if (@copy($file->getPathname(), $dest)) {
-                        $results[] = '<i class="fas fa-check"></i> Updated ' . $relPath;
+
+            exec("git ls-remote $repo_url HEAD 2>/dev/null", $remote_raw, $remote_rc);
+            if ($remote_rc === 0 && !empty($remote_raw[0])) {
+                $latest_hash = strtok($remote_raw[0], " \t");
+                $stored_hash = @file_get_contents($hash_file);
+                if (trim($stored_hash) === $latest_hash) {
+                    $results[] = '<i class="fas fa-check"></i> Already up to date (latest: ' . substr($latest_hash, 0, 8) . ')';
+                    $flash_type = 'success';
+                    $flash_msg = 'Update check completed.<br>' . implode('<br>', $results);
+                    $flash = [$flash_type, $flash_msg];
+                } else {
+                    @mkdir($tmp_dir, 0755, true);
+                    exec("git clone --depth 1 " . escapeshellarg($repo_url) . " " . escapeshellarg($tmp_dir) . " 2>&1", $raw, $rc);
+                    if ($rc === 0) {
+                        $results[] = '<i class="fas fa-check"></i> Repository cloned (commit ' . substr($latest_hash, 0, 8) . ')';
+                        $iterator = new RecursiveIteratorIterator(
+                            new RecursiveDirectoryIterator($tmp_dir, RecursiveDirectoryIterator::SKIP_DOTS)
+                        );
+                        foreach ($iterator as $file) {
+                            $relPath = substr($file->getPathname(), strlen($tmp_dir) + 1);
+                            if (str_starts_with($relPath, '.git') || str_starts_with($relPath, '.git/')) continue;
+                            if ($file->isDir()) continue;
+                            $dest = $target_dir . '/' . $relPath;
+                            $destDir = dirname($dest);
+                            if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+                            if (@copy($file->getPathname(), $dest)) {
+                                $results[] = '<i class="fas fa-check"></i> Updated ' . $relPath;
+                            } else {
+                                $all_ok = false;
+                                $results[] = '<i class="fas fa-times"></i> Failed to copy ' . $relPath;
+                            }
+                        }
+                        file_put_contents($hash_file, $latest_hash);
+                        exec("rm -rf " . escapeshellarg($tmp_dir) . " 2>&1");
                     } else {
                         $all_ok = false;
-                        $results[] = '<i class="fas fa-times"></i> Failed to copy ' . $relPath;
+                        $results[] = '<i class="fas fa-times"></i> Failed to clone repository: ' . implode(' ', $raw);
                     }
+                    $flash_type = $all_ok ? 'success' : 'error';
+                    $flash_msg = 'Update ' . ($all_ok ? 'completed successfully!' : 'completed with errors.') . '<br>' . implode('<br>', $results);
+                    $flash = [$flash_type, $flash_msg];
                 }
-                exec("rm -rf " . escapeshellarg($tmp_dir) . " 2>&1");
             } else {
-                $all_ok = false;
-                $results[] = '<i class="fas fa-times"></i> Failed to clone repository: ' . implode(' ', $raw);
+                $flash = ['error', 'Failed to check for updates — no internet connection?'];
             }
-            $flash_type = $all_ok ? 'success' : 'error';
-            $flash_msg = 'Update ' . ($all_ok ? 'completed successfully!' : 'completed with errors.') . '<br>' . implode('<br>', $results);
-            $flash = [$flash_type, $flash_msg];
         }
         if (true) {
             header('Location: ?tab=' . urlencode($tab));
