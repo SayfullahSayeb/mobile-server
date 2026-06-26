@@ -1,144 +1,180 @@
 #!/data/data/com.termux/files/usr/bin/bash
+
 set -e
 
-# ── helpers ────────────────────────────────────────────────────────────────────
-PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
-HOME_DIR="${HOME:-/data/data/com.termux/files/home}"
-SERVER_ROOT="$HOME_DIR/server"
-WEB_ROOT="$SERVER_ROOT/sites/default/public_html"
+# --- SERVICE MANAGEMENT FUNCTIONS ---
 
-die()  { echo "❌ $*" >&2; exit 1; }
-info() { echo "➤  $*"; }
+start_services() {
+    echo "Starting Mobile Server services..."
+    
+    # Start SSH
+    if pgrep sshd >/dev/null; then
+        echo "  - SSH is already running."
+    else
+        sshd && echo "  - SSH started."
+    fi
 
-get_ip() {
-  ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 \
-    || hostname -I 2>/dev/null | awk '{print $1}'
+    # Start PHP-FPM
+    if pgrep php-fpm >/dev/null; then
+        echo "  - PHP-FPM is already running."
+    else
+        php-fpm && echo "  - PHP-FPM started."
+    fi
+
+    # Start MariaDB
+    if pgrep mariadbd >/dev/null; then
+        echo "  - MariaDB is already running."
+    else
+        mariadbd-safe >/dev/null 2>&1 &
+        echo "  - MariaDB started."
+    fi
+
+    # Start Nginx
+    if pgrep nginx >/dev/null; then
+        echo "  - Nginx is already running."
+    else
+        sleep 1 # Give MariaDB a second to init
+        nginx && echo "  - Nginx started."
+    fi
+    
+    echo "All services processed."
 }
 
-svc_status() { pgrep "$1" >/dev/null 2>&1 && echo "Running" || echo "Stopped"; }
-
-# ── install packages ────────────────────────────────────────────────────────────
-info "Installing Mobile Server..."
-pkg update -y && pkg upgrade -y
-pkg install -y openssh iproute2 nginx php php-fpm mariadb git curl wget unzip tar
-
-# ── create mobile-server control script ────────────────────────────────────────
-cat > "$PREFIX/bin/mobile-server" <<'CTRL'
-#!/data/data/com.termux/files/usr/bin/bash
-
-get_ip() {
-  ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 \
-    || hostname -I 2>/dev/null | awk '{print $1}'
-}
-svc_status() { pgrep "$1" >/dev/null 2>&1 && echo "Running" || echo "Stopped"; }
-
-start_server() {
-  pgrep sshd   >/dev/null 2>&1 || sshd
-  pkill -q php-fpm  2>/dev/null; php-fpm
-  pgrep mariadbd >/dev/null 2>&1 || mariadbd-safe >/dev/null 2>&1 &
-  pkill -q nginx 2>/dev/null;    nginx
-  echo "✅ Mobile Server Started"
-  echo "SSH : ssh -p 8022 $(whoami)@$(get_ip)"
-  echo "Web : http://$(get_ip):8080"
+stop_services() {
+    echo "Stopping Mobile Server services..."
+    pkill nginx 2>/dev/null && echo "  - Nginx stopped." || echo "  - Nginx wasn't running."
+    pkill mariadbd 2>/dev/null && echo "  - MariaDB stopped." || echo "  - MariaDB wasn't running."
+    pkill php-fpm 2>/dev/null && echo "  - PHP-FPM stopped." || echo "  - PHP-FPM wasn't running."
+    pkill sshd 2>/dev/null && echo "  - SSH stopped." || echo "  - SSH wasn't running."
+    echo "All services stopped."
 }
 
-stop_server() {
-  for svc in nginx php-fpm mariadbd sshd; do pkill "$svc" 2>/dev/null || true; done
-  echo "🛑 Mobile Server Stopped"
+check_status() {
+    echo "Mobile Server Status:"
+    pgrep sshd >/dev/null && echo "  [RUNNING] SSH" || echo "  [STOPPED] SSH"
+    pgrep php-fpm >/dev/null && echo "  [RUNNING] PHP-FPM" || echo "  [STOPPED] PHP-FPM"
+    pgrep mariadbd >/dev/null && echo "  [RUNNING] MariaDB" || echo "  [STOPPED] MariaDB"
+    pgrep nginx >/dev/null && echo "  [RUNNING] Nginx" || echo "  [STOPPED] Nginx"
 }
 
-status_server() {
-  printf "%-8s : %s\n" \
-    SSH     "$(svc_status sshd)"   \
-    Nginx   "$(svc_status nginx)"  \
-    PHP-FPM "$(svc_status php-fpm)"\
-    MariaDB "$(svc_status mariadbd)"
-}
+# --- ARGUMENT HANDLING ---
 
-case "${1:-}" in
-  start)   start_server ;;
-  stop)    stop_server  ;;
-  restart) stop_server; sleep 1; start_server ;;
-  status)  status_server ;;
-  *)
-    echo "Mobile Server"
-    echo
-    echo "Usage:"
-    printf "  mobile-server %s\n" start stop restart status
-    exit 1
-    ;;
+case "$1" in
+    start)
+        start_services
+        exit 0
+        ;;
+    stop)
+        stop_services
+        exit 0
+        ;;
+    restart)
+        stop_services
+        sleep 1
+        start_services
+        exit 0
+        ;;
+    status)
+        check_status
+        exit 0
+        ;;
+    "")
+        # No arguments passed? Proceed to run the installer below.
+        ;;
+    *)
+        echo "Usage: mobile-server [start|stop|restart|status]"
+        exit 1
+        ;;
 esac
-CTRL
-chmod +x "$PREFIX/bin/mobile-server"
 
-# ── directory structure ─────────────────────────────────────────────────────────
-mkdir -p "$WEB_ROOT" "$SERVER_ROOT"/{backups,logs,configs}
+# --- INSTALLER LOGIC ---
 
-# ── default index.php ──────────────────────────────────────────────────────────
-cat > "$WEB_ROOT/index.php" <<'PHP'
+echo "Installing Mobile Server..."
+
+pkg update -y
+pkg upgrade -y
+
+pkg install -y \
+openssh \
+iproute2 \
+nginx \
+php \
+php-fpm \
+mariadb \
+git \
+curl \
+wget \
+unzip \
+tar
+
+mkdir -p ~/server/sites/default/public_html ~/server/backups ~/server/logs ~/server/configs
+
+cat > ~/server/sites/default/public_html/index.php <<'EOF'
 <?php
 echo "<h1>🎉 Mobile Server</h1>";
 echo "<p>Installation successful.</p>";
-echo "<strong>PHP " . phpversion() . "</strong>";
-PHP
+echo "<strong>PHP ".phpversion()."</strong>";
+EOF
 
-# ── nginx config ───────────────────────────────────────────────────────────────
-PHP_SOCKET=$(awk '/^listen[[:space:]]*=/{print $3; exit}' \
-  "$PREFIX/etc/php-fpm.d/www.conf")
+PHP_SOCKET=$(grep '^listen =' $PREFIX/etc/php-fpm.d/www.conf | awk '{print $3}')
 
-cat > "$PREFIX/etc/nginx/nginx.conf" <<NGINX
+cat > $PREFIX/etc/nginx/nginx.conf <<EOF
 worker_processes 1;
 events { worker_connections 1024; }
 http {
-    include      mime.types;
+    include mime.types;
     default_type application/octet-stream;
-    sendfile     on;
+    sendfile on;
     server {
         listen 8080;
-        root  $WEB_ROOT;
+        root /data/data/com.termux/files/home/server/sites/default/public_html;
         index index.php index.html;
         location / { try_files \$uri \$uri/ /index.php?\$query_string; }
         location ~ \.php$ {
-            include            fastcgi.conf;
-            fastcgi_pass       unix:${PHP_SOCKET};
-            fastcgi_index      index.php;
-            fastcgi_param      SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+            include fastcgi.conf;
+            fastcgi_pass unix:${PHP_SOCKET};
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
         }
     }
 }
-NGINX
+EOF
 
-# ── init MariaDB (first run only) ──────────────────────────────────────────────
-[ -d "$PREFIX/var/lib/mysql/mysql" ] || \
-  mariadb-install-db --user="$(whoami)"
+[ -d "$PREFIX/var/lib/mysql/mysql" ] || mariadb-install-db --user=$(whoami)
 
-# ── generate SSH password & start services ─────────────────────────────────────
+# Setup root password for Termux user
 SSH_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 12)
-printf '%s\n%s\n' "$SSH_PASS" "$SSH_PASS" | passwd >/dev/null 2>&1
+printf "%s\n%s\n" "$SSH_PASS" "$SSH_PASS" | passwd >/dev/null
 
-pgrep sshd    >/dev/null 2>&1 || sshd
-pkill -q php-fpm  2>/dev/null; php-fpm
-pkill -q mariadbd 2>/dev/null; mariadbd-safe >/dev/null 2>&1 &
-sleep 2
-pkill -q nginx 2>/dev/null; nginx
+# Register this very script into Termux system binaries so it can be called anywhere
+cp "$0" "$PREFIX/bin/mobile-server"
+chmod +x "$PREFIX/bin/mobile-server"
 
-# ── final output ───────────────────────────────────────────────────────────────
+# Trigger start
+start_services
+
 USER=$(whoami)
-IP=$(get_ip)
-SEP="========================================"
+IP=$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+[ -z "$IP" ] && IP=$(hostname -I | awk '{print $1}')
+
 clear
-cat <<OUT
-$SEP
-     Mobile Server Ready 🚀
-$SEP
 
-SSH Access:
-  ssh -p 8022 ${USER}@${IP}
-
-Password:
-  $SSH_PASS
-
-Website:
-  http://${IP}:8080
-$SEP
-OUT
+echo "========================================"
+echo "      Mobile Server Ready 🚀"
+echo "========================================"
+echo
+echo "You can now manage your server globally using:"
+echo "  mobile-server start"
+echo "  mobile-server stop"
+echo "  mobile-server restart"
+echo "  mobile-server status"
+echo
+echo "SSH Access:"
+echo "ssh -p 8022 ${USER}@${IP}"
+echo
+echo "Password:"
+echo "$SSH_PASS"
+echo
+echo "Website:"
+echo "http://${IP}:8080"
+echo "========================================"
