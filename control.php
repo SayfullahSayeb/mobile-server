@@ -59,6 +59,7 @@ define('CONFIG_DIR', HOME_DIR . '/server/configs');
 define('LOG_MAX_LINES', 200);
 define('NGINX_CONF', '/data/data/com.termux/files/usr/etc/nginx/nginx.conf');
 define('NGINX_SITES_DIR', CONFIG_DIR . '/nginx-sites');
+define('SSL_DIR', HOME_DIR . '/server/ssl');
 define('SITES_JSON', CONFIG_DIR . '/sites.json');
 define('PHP_SOCKET', (function () {
     $s = trim(@exec('grep "^listen =" /data/data/com.termux/files/usr/etc/php-fpm.d/www.conf 2>/dev/null | awk "{print \$3}"') ?: '');
@@ -648,6 +649,53 @@ if ($logged_in) {
             } else {
                 $flash = ['error', 'Failed to check for updates — no internet connection?'];
             }
+        } elseif ($action === 'setup_https') {
+            @mkdir(SSL_DIR, 0755, true);
+            $cert = SSL_DIR . '/cert.pem';
+            $key = SSL_DIR . '/key.pem';
+            $ip = $ip_addr ?? 'localhost';
+            // Generate self-signed cert valid for 10 years
+            exec("openssl req -x509 -newkey rsa:2048 -keyout " . escapeshellarg($key) . " -out " . escapeshellarg($cert) . " -days 3650 -nodes -subj '/CN=$ip' 2>&1", $raw, $rc);
+            if ($rc !== 0) {
+                $flash = ['error', 'Failed to generate SSL certificate: ' . implode(' ', $raw)];
+                panelLog('HTTPS setup failed');
+            } else {
+                // Write SSL server block as a separate config in the sites include dir
+                $sslConf = NGINX_SITES_DIR . '/_ssl.conf';
+                $sslBlock = "server {\n"
+                    . "    listen 8443 ssl;\n"
+                    . "    server_name $ip;\n"
+                    . "    ssl_certificate $cert;\n"
+                    . "    ssl_certificate_key $key;\n"
+                    . "    ssl_protocols TLSv1.2 TLSv1.3;\n"
+                    . "    root " . DEFAULT_SITE_DIR . ";\n"
+                    . "    index index.php index.html;\n"
+                    . "    location / { try_files \$uri \$uri/ /index.php?\$query_string; }\n"
+                    . "    location ~ \\.php$ {\n"
+                    . "        include fastcgi.conf;\n"
+                    . "        fastcgi_pass " . PHP_SOCKET . ";\n"
+                    . "        fastcgi_index index.php;\n"
+                    . "        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;\n"
+                    . "    }\n"
+                    . "}\n";
+                if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
+                file_put_contents($sslConf, $sslBlock);
+                $ok = reloadNginx();
+                if (!$ok) $ok = restartNginx();
+                $msg = 'HTTPS enabled at https://' . $ip . ':8443' . ($ok ? '' : ' (nginx reload failed)');
+                $flash = [$ok ? 'success' : 'error', $msg];
+                panelLog('HTTPS setup: ' . ($ok ? 'done' : 'failed'));
+            }
+        } elseif ($action === 'disable_https') {
+            $sslConf = NGINX_SITES_DIR . '/_ssl.conf';
+            if (is_file($sslConf)) {
+                @unlink($sslConf);
+                reloadNginx();
+                $flash = ['success', 'HTTPS disabled'];
+                panelLog('HTTPS disabled');
+            } else {
+                $flash = ['error', 'HTTPS is not enabled'];
+            }
         }
         if (true) {
             if (isset($flash)) {
@@ -658,6 +706,7 @@ if ($logged_in) {
         }
     }
 
+    $https_enabled = is_file(SSL_DIR . '/cert.pem') && is_file(SSL_DIR . '/key.pem');
     $status = [];
     foreach ($services as $name => $s) {
         $p = $s['process'];

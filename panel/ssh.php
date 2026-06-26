@@ -53,20 +53,29 @@
 
 
 
-    // Paste handler (works on HTTP too)
-    term.element.addEventListener('paste', function(ev) {
-      ev.preventDefault();
-      var text = (ev.clipboardData || window.clipboardData).getData('text/plain');
-      if (text) {
-        inputLine += text;
-        cursorPos += text.length;
-        term.write(text.replace(/\n/g, '\r\n'));
-      }
-    });
+    function doExec(cmd) {
+      inputLine = '';
+      cursorPos = 0;
+      term.write('\r\n$ ' + cmd + '\r\n');
+      execCmd(cmd).then(function(r) {
+        if (r.output) term.write(r.output.replace(/\n/g, '\r\n'));
+        if (!r.output.endsWith('\n')) term.writeln('');
+        prompt = r.prompt;
+        term.write(prompt);
+      }).catch(function() {
+        term.writeln('\x1b[31mError executing command\x1b[0m');
+        term.write(prompt);
+      });
+    }
 
     execCmd('').then(function(r) {
       prompt = r.prompt;
       term.write(prompt);
+      // Auto-run command from URL ?cmd=...
+      var autoCmd = new URLSearchParams(window.location.search).get('cmd');
+      if (autoCmd) {
+        doExec(autoCmd);
+      }
     });
 
     term.attachCustomKeyEventHandler(function(ev) {
@@ -80,10 +89,13 @@
         }
         return true;
       }
-      // Let Ctrl+V and Ctrl+Shift+V through so the paste event fires
-      if (ev.ctrlKey && ev.key === 'v') return false;
-      if (ev.ctrlKey && ev.shiftKey && ev.key === 'V') return false;
       return true;
+    });
+
+    // Paste: sync pasted text into our input buffer
+    term.onPaste(function(text) {
+      inputLine += text;
+      cursorPos += text.length;
     });
 
     term.onKey(function(e) {

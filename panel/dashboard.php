@@ -6,7 +6,7 @@
       <input type="hidden" name="action" value="restart_all">
       <button type="submit" class="btn btn-w btn-s" onclick="return confirm('Restart all services?')">↻ Restart All</button>
     </form>
-    <button class="btn btn-p btn-s" id="updateBtn" onclick="showUpdateModal()"><i class="fas fa-sync-alt"></i> Update</button>
+    <a href="?tab=ssh&cmd=cd+%7E%2Fmobile-server+%26%26+bash+mobile-server+update" class="btn btn-p btn-s"><i class="fas fa-sync-alt"></i> Update</a>
   </div>
 </div>
 <div class="sr">
@@ -28,6 +28,30 @@
   </div>
 </div>
 <?php endforeach; ?>
+</div>
+
+<div class="sec">
+  <div class="df jb ac fw g2">
+    <div class="df ac g3">
+      <div class="sc-ic" style="background:rgba(34,197,94,.12);color:#22c55e"><i class="fas fa-lock"></i></div>
+      <div class="st" style="margin:0">HTTPS</div>
+      <span class="bdg <?= $https_enabled ? 'on' : 'off' ?>"><span class="dt"></span><?= $https_enabled ? 'Enabled' : 'Disabled' ?></span>
+    </div>
+    <div class="df ac g2 fw">
+      <?php if ($https_enabled): ?>
+      <a href="https://<?= htmlspecialchars($ip_addr) ?>:8443" target="_blank" class="btn btn-p btn-s"><i class="fas fa-external-link-alt"></i> Open</a>
+      <form method="post" style="display:inline"><?= csrf() ?><input type="hidden" name="action" value="disable_https"><button type="submit" class="btn btn-d btn-s" onclick="return confirm('Disable HTTPS?')">Disable</button></form>
+      <?php else: ?>
+      <form method="post" style="display:inline"><?= csrf() ?><input type="hidden" name="action" value="setup_https"><button type="submit" class="btn btn-p btn-s"><i class="fas fa-lock"></i> Enable HTTPS</button></form>
+      <?php endif; ?>
+    </div>
+  </div>
+  <?php if ($https_enabled): ?>
+  <div class="ig" style="margin-top:10px;margin-bottom:0">
+    <div class="ii"><div class="l">HTTPS URL</div><div class="v"><a href="https://<?= htmlspecialchars($ip_addr) ?>:8443" target="_blank" style="color:var(--blue)">https://<?= htmlspecialchars($ip_addr) ?>:8443</a></div></div>
+    <div class="ii"><div class="l">Certificate</div><div class="v" style="color:var(--text2)">Self-signed (10 year)</div></div>
+  </div>
+  <?php endif; ?>
 </div>
 
 <?php if ($tunnelInstalled && $tunnelAuthenticated && $tunnelManager->hasActiveTunnel()): $ts = $tunnelStatus; ?>
@@ -81,56 +105,4 @@
   <div class="ii"><div class="l">Web Server</div><div class="v">Nginx :8080</div></div>
 </div>
 
-<div id="updateModal" class="modal">
-  <div class="modal-bg" onclick="closeUpdateModal()"></div>
-  <div class="modal-content" style="max-width:650px">
-    <div class="modal-header">
-      <span class="modal-title"><i class="fas fa-sync-alt"></i> Updating Mobile Server</span>
-      <span class="modal-close" onclick="closeUpdateModal()">&times;</span>
-    </div>
-    <div id="updateLog" class="lv" style="max-height:350px;overflow-y:auto;font-size:13px;line-height:1.6;padding:12px;font-family:'JetBrains Mono','Fira Code',monospace;white-space:pre-wrap"></div>
-    <div class="modal-footer" id="updateFooter" style="display:none">
-      <button class="btn btn-p" onclick="location.reload()">Close &amp; Reload</button>
-    </div>
-  </div>
-</div>
-
-<script>
-var token = <?= json_encode($csrf_token) ?>;
-
-function sshExec(cmd) {
-  return fetch('panel/ssh_exec.php', {
-    method: 'POST',
-    headers: {'Content-Type':'application/x-www-form-urlencoded'},
-    body: 'cmd=' + encodeURIComponent(cmd) + '&csrf_token=' + encodeURIComponent(token)
-  }).then(function(r) { return r.json(); });
-}
-
-function showUpdateModal() {
-  var modal = document.getElementById('updateModal');
-  var log = document.getElementById('updateLog');
-  modal.classList.add('show');
-  log.innerHTML = '';
-  document.getElementById('updateBtn').disabled = true;
-
-  function addLine(text) {
-    var d = document.createElement('div');
-    d.textContent = text;
-    log.appendChild(d);
-    log.scrollTop = log.scrollHeight;
-  }
-
-  addLine('$ ~/mobile-server/mobile-server update');
-
-  sshExec('cd ~/mobile-server && bash mobile-server update').then(function(r) {
-    addLine(r.output);
-    document.getElementById('updateBtn').disabled = false;
-    document.getElementById('updateFooter').style.display = 'flex';
-  });
-}
-
-function closeUpdateModal() {
-  document.getElementById('updateModal').classList.remove('show');
-}
-</script>
 

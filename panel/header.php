@@ -47,6 +47,9 @@ function csrf(): string {
     <a href="?tab=files" class="nav-i <?= $tab==='files'?'act':'' ?>">
       <span class="ni"><i class="fas fa-folder"></i></span><span class="nl">File Manager</span>
     </a>
+    <a href="?tab=settings" class="nav-i <?= $tab==='settings'?'act':'' ?>">
+      <span class="ni"><i class="fas fa-cog"></i></span><span class="nl">Settings</span>
+    </a>
   </div>
   <div class="sb-foot">Mobile Server v1.0</div>
 </div>
