@@ -654,11 +654,13 @@ if ($logged_in) {
             $cert = SSL_DIR . '/cert.pem';
             $key = SSL_DIR . '/key.pem';
             $ip = $ip_addr ?? 'localhost';
+            $ssl_generated = false;
             // Try openssl CLI first, then fallback to PHP openssl
             exec("openssl req -x509 -newkey rsa:2048 -keyout " . escapeshellarg($key) . " -out " . escapeshellarg($cert) . " -days 3650 -nodes -subj '/CN=$ip' 2>&1", $raw, $rc);
-            if ($rc !== 0) {
+            if ($rc === 0) {
+                $ssl_generated = true;
+            } else {
                 // Fallback: generate cert with PHP's openssl extension
-                $genOk = false;
                 if (function_exists('openssl_pkey_new') && function_exists('openssl_csr_new') && function_exists('openssl_csr_sign')) {
                     $pkey = @openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
                     if ($pkey) {
@@ -672,17 +674,18 @@ if ($logged_in) {
                                 if ($pkeyStr && $certStr) {
                                     file_put_contents($key, $pkeyStr);
                                     file_put_contents($cert, $certStr);
-                                    $genOk = true;
+                                    $ssl_generated = true;
                                 }
                             }
                         }
                     }
                 }
-                if (!$genOk) {
+                if (!$ssl_generated) {
                     $flash = ['error', 'Failed to generate SSL certificate. Install openssl: pkg install openssl in Termux'];
                     panelLog('HTTPS setup failed');
                 }
             }
+            if ($ssl_generated) {
                 // Write SSL server block as a separate config in the sites include dir
                 $sslConf = NGINX_SITES_DIR . '/_ssl.conf';
                 $sslBlock = "server {\n"
@@ -757,6 +760,7 @@ if ($logged_in) {
     $tunnelAutoStart = $tunnelManager->isAutoStartEnabled();
 
     $csrf_token = $_SESSION['csrf_token'];
+}
 ?>
 <?php if (!$logged_in): ?>
 <?php
