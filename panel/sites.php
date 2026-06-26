@@ -51,11 +51,8 @@ ksort($allSites);
       <tr>
         <td class="td-name"><?= htmlspecialchars($name) ?></td>
         <td>
-          <?php if (!empty($site['domain']) && $site['port']): ?>
-          <a href="http://<?= htmlspecialchars($site['domain']) ?>:<?= $site['port'] ?>" target="_blank" class="sd"><?= htmlspecialchars($site['domain']) ?>:<?= $site['port'] ?></a>
-          <?php if (!empty($ip_addr) && $ip_addr !== 'N/A'): ?>
-          <div class="tm ts" style="margin-top:3px">Also: <a href="http://<?= htmlspecialchars($ip_addr) ?>:<?= $site['port'] ?>" target="_blank" style="color:var(--text2);text-decoration:none;border-bottom:1px dashed var(--text3)"><?= htmlspecialchars($ip_addr) ?>:<?= $site['port'] ?></a></div>
-          <?php endif; ?>
+          <?php if (!empty($site['port'])): ?>
+          <a href="http://<?= htmlspecialchars($site['domain'] ?: $ip_addr) ?>:<?= $site['port'] ?>" target="_blank" class="sd"><?= htmlspecialchars($site['domain'] ?: $ip_addr) ?>:<?= $site['port'] ?></a>
           <?php else: ?>
           <span class="tm ts">/<?= htmlspecialchars($name) ?></span>
           <?php endif; ?>
@@ -138,7 +135,7 @@ ksort($allSites);
       <input type="hidden" name="action" id="formAction" value="create_site">
       <input type="hidden" name="site_name_orig" id="siteNameOrig" value="">
       <input type="text" name="site_name" id="siteName" class="inp" placeholder="Site name (e.g. myapp)" required pattern="[a-z0-9_-]+" title="Letters, numbers, hyphens, underscores only">
-      <input type="text" name="site_domain" id="siteDomain" class="inp" placeholder="Domain (e.g. myapp.test) — defaults to sitename.test">
+      <input type="hidden" name="site_domain" id="siteDomain" value="">
       <div class="st2" style="margin:0 0 8px">Site Type</div>
       <div class="df ac g3 mb1" id="siteTypeGroup">
         <label class="rl" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.08);border-radius:var(--rs);transition:all .15s">

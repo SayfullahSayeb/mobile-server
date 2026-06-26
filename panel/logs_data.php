@@ -3,22 +3,58 @@ declare(strict_types=1);
 
 $home = getenv('HOME') ?: '/data/data/com.termux/files/home';
 $logDir = $home . '/server/logs';
+$prefix = '/data/data/com.termux/files/usr';
+
 $services = [
-    'nginx'   => ['icon' => 'fa-bolt',   'color' => '#22c55e'],
-    'php-fpm' => ['icon' => 'fa-server', 'color' => '#8b5cf6'],
-    'mariadb' => ['icon' => 'fa-database','color' => '#f59e0b'],
+    'panel' => [
+        'icon' => 'fa-cog', 'color' => '#3b82f6',
+        'paths' => [$logDir . '/panel.log'],
+        'label' => 'Panel'
+    ],
+    'nginx' => [
+        'icon' => 'fa-bolt', 'color' => '#22c55e',
+        'paths' => [
+            $logDir . '/nginx.log',
+            $prefix . '/var/log/nginx/error.log',
+            $prefix . '/etc/nginx/logs/error.log',
+        ],
+        'label' => 'Nginx'
+    ],
+    'php-fpm' => [
+        'icon' => 'fa-server', 'color' => '#8b5cf6',
+        'paths' => [
+            $logDir . '/php-fpm.log',
+            $prefix . '/var/log/php-fpm.log',
+        ],
+        'label' => 'PHP'
+    ],
+    'mariadb' => [
+        'icon' => 'fa-database', 'color' => '#f59e0b',
+        'paths' => [
+            $logDir . '/mariadb.log',
+            $prefix . '/var/log/mariadb.log',
+            $prefix . '/var/lib/mysql/error.log',
+        ],
+        'label' => 'MariaDB'
+    ],
 ];
 
 $maxLines = 200;
 $allLines = [];
 
 foreach ($services as $name => $info) {
-    $path = $logDir . '/' . $name . '.log';
-    if (!is_file($path)) continue;
-    $lines = file($path);
+    $path = null;
+    foreach ($info['paths'] as $p) {
+        if (is_file($p)) { $path = $p; break; }
+    }
+    if (!$path) {
+        @touch($logDir . '/' . $name . '.log');
+        continue;
+    }
+    $lines = @file($path);
     if (!$lines) continue;
     $lines = array_slice($lines, -$maxLines);
-    foreach ($lines as $i => $line) {
+    foreach ($lines as $line) {
         $trimmed = trim($line);
         if ($trimmed === '') continue;
         $level = 'info';
@@ -31,7 +67,7 @@ foreach ($services as $name => $info) {
             $level = 'info';
         }
         $allLines[] = [
-            'svc'   => $name,
+            'svc'   => $info['label'],
             'color' => $info['color'],
             'icon'  => $info['icon'],
             'level' => $level,

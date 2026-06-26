@@ -116,28 +116,37 @@ function showUpdateModal() {
 
   var es = new EventSource('?tab=update&action=stream&csrf_token=<?= htmlspecialchars($csrf_token) ?>');
 
+  es.addEventListener('line', function(e) {
+    var line = document.createElement('div');
+    line.textContent = e.data;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  });
+
   es.addEventListener('start', function(e) {
     status.textContent = e.data;
-    log.innerHTML += '<div style="color:var(--blue)">\u2502 ' + e.data + '</div>';
   });
 
   es.addEventListener('total', function(e) {
-    log.innerHTML += '<div style="color:var(--text3)">\u2502 Total files: ' + e.data + '</div>';
+    var n = parseInt(e.data);
+    if (n > 0) bar.style.width = '1%';
   });
 
   es.addEventListener('progress', function(e) {
     var d = JSON.parse(e.data);
-    var line = document.createElement('div');
     if (d.status === 'ok') {
+      var line = document.createElement('div');
       line.innerHTML = '<span style="color:var(--green)">\u2713</span> ' + escHtml(d.file);
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
     } else {
+      var line = document.createElement('div');
       line.innerHTML = '<span style="color:var(--red)">\u2717</span> ' + escHtml(d.file);
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
     }
-    log.appendChild(line);
-    log.scrollTop = log.scrollHeight;
     if (d.total > 0) {
       bar.style.width = ((d.current / d.total) * 100) + '%';
-      status.textContent = d.current + ' / ' + d.total + ' files';
     }
   });
 
@@ -153,7 +162,7 @@ function showUpdateModal() {
   });
 
   es.onerror = function() {
-    status.textContent = 'Connection lost. Check Logs page for details.';
+    status.textContent = 'Connection lost.';
     status.style.color = 'var(--red)';
     footer.style.display = 'flex';
     document.getElementById('updateBtn').disabled = false;

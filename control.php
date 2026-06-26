@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+putenv('PATH=/data/data/com.termux/files/usr/bin:' . getenv('PATH'));
+
 $configDir = getenv('HOME') ? getenv('HOME') . '/server/configs' : '/data/data/com.termux/files/home/server/configs';
 $secretFile = $configDir . '/secret.php';
 
@@ -65,6 +67,12 @@ define('PHP_SOCKET', (function () {
     }
     return $s ?: 'unix:/data/data/com.termux/files/usr/var/run/php-fpm.sock';
 })());
+
+function panelLog(string $message): void {
+    @mkdir(LOG_DIR, 0755, true);
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . $message . "\n";
+    @file_put_contents(LOG_DIR . '/panel.log', $line, FILE_APPEND | LOCK_EX);
+}
 
 require_once __DIR__ . '/lib/TunnelProvider.php';
 require_once __DIR__ . '/lib/CloudflareTunnelProvider.php';
@@ -171,27 +179,37 @@ function rewriteNginxMainConfig(): bool {
 function restartNginx(): bool {
     exec('nginx -t 2>&1', $raw, $rc);
     if ($rc !== 0) {
-        error_log('nginx config test failed: ' . implode("\n", $raw));
+        error_log('nginx -t: ' . implode("\n", $raw));
         return false;
     }
-    exec('pkill nginx 2>/dev/null; sleep 1; nginx 2>&1', $raw, $rc);
-    return $rc === 0;
+    exec('nginx -s stop 2>/dev/null; sleep 1; nginx 2>&1', $raw, $rc);
+    if ($rc !== 0) {
+        exec('pkill nginx 2>/dev/null; sleep 1; nginx 2>&1', $raw, $rc);
+    }
+    sleep(1);
+    exec('pgrep -x nginx 2>/dev/null', $pout, $prc);
+    return $prc === 0;
 }
 
 function reloadNginx(): bool {
     exec('nginx -t 2>&1', $raw, $rc);
     if ($rc !== 0) {
-        error_log('nginx config test failed: ' . implode("\n", $raw));
+        error_log('nginx -t: ' . implode("\n", $raw));
         return false;
     }
-    exec('pkill -HUP nginx 2>/dev/null', $raw, $rc);
-    return $rc === 0;
+    exec('nginx -s reload 2>/dev/null', $raw, $rc);
+    if ($rc !== 0) {
+        exec('pkill -HUP nginx 2>/dev/null', $raw, $rc);
+    }
+    sleep(1);
+    exec('pgrep -x nginx 2>/dev/null', $pout, $prc);
+    return $prc === 0;
 }
 
 $services = [
-    'Nginx'   => ['process' => 'nginx',   'start' => 'nginx',                            'stop' => 'pkill nginx',    'log' => ''],
-    'PHP-FPM' => ['process' => 'php-fpm', 'start' => 'php-fpm',                          'stop' => 'pkill php-fpm',  'log' => ''],
-    'MariaDB' => ['process' => 'mariadbd','start' => 'mariadbd-safe >/dev/null 2>&1 &', 'stop' => 'pkill mariadbd',  'log' => ''],
+    'Nginx'   => ['process' => 'nginx',   'start' => 'nginx',                            'stop' => 'nginx -s stop',    'log' => ''],
+    'PHP-FPM' => ['process' => 'php-fpm', 'start' => 'php-fpm',                          'stop' => 'pkill php-fpm',    'log' => ''],
+    'MariaDB' => ['process' => 'mariadbd','start' => 'mariadbd-safe >/dev/null 2>&1 &', 'stop' => 'pkill mariadbd',    'log' => ''],
 ];
 
 $log_files = [];
@@ -242,6 +260,7 @@ if ($logged_in) {
             foreach ($services as $s) { $cmds[] = $s['start']; }
             exec(implode('; ', $cmds) . ' 2>&1', $raw, $rc);
             $flash = ['success', 'All services restarted'];
+            panelLog('Restarted all services');
         } elseif (isset($services[$_POST['service'] ?? ''])) {
             $s = $services[$_POST['service']];
             $svc = $_POST['service'];
@@ -251,12 +270,13 @@ if ($logged_in) {
             if (isset($cmd)) {
                 exec($cmd . ' 2>&1', $raw, $rc);
                 $flash = [$rc === 0 ? 'success' : 'error', ucfirst($action) . " $svc " . ($rc === 0 ? 'done' : 'failed')];
+                panelLog(ucfirst($action) . " $svc: " . ($rc === 0 ? 'done' : 'failed'));
             }
         } elseif ($action === 'create_site') {
             $name = trim($_POST['site_name'] ?? '');
             $domain = trim($_POST['site_domain'] ?? '');
+            if (!$domain) $domain = $ip_addr ?? 'localhost';
             $type = trim($_POST['site_type'] ?? 'static');
-            if (!$domain) $domain = $name . '.test';
             if (!preg_match('/^[a-z0-9_-]+$/', $name)) {
                 $flash = ['error', 'Invalid site name (use a-z, 0-9, -, _)'];
             } elseif (!in_array($type, ['static', 'wordpress'], true)) {
@@ -314,6 +334,7 @@ if ($logged_in) {
                                 $url = "http://$domain:$port";
                                 $wpSuffix = $type === 'wordpress' ? ' (<a href=\'' . $url . '/wp-admin/install.php\' style=\'color:#3b82f6\'>Complete setup</a>)' : '';
                                 $flash = [$wpResult[0] ? 'success' : 'error', ($wpResult[0] ? ucfirst($type) : 'Static') . " site '$name' created — <a href='$url' target='_blank' style='color:#3b82f6'>$url</a>" . ($wpResult[0] ? $wpSuffix : '') . ($wpResult[0] ? '' : ($wpResult[1] ? '<br>' . $wpResult[1] : ''))];
+                                panelLog("Created $type site '$name' at $domain:$port");
                             }
                         }
                     }
@@ -335,6 +356,7 @@ if ($logged_in) {
                     $restartOk = reloadNginx();
                     if (!$restartOk) { $restartOk = restartNginx(); }
                     $flash = [$rc === 0 ? 'success' : 'error', $rc === 0 ? "Site '$name' deleted" : "Failed to delete '$name'"];
+                    panelLog("Deleted site '$name': " . ($rc === 0 ? 'done' : 'failed'));
                 } else {
                     $flash = ['error', "Site '$name' not found"];
                 }
@@ -360,6 +382,7 @@ if ($logged_in) {
                     $restartOk = reloadNginx();
                     if (!$restartOk) { $restartOk = restartNginx(); }
                     $flash = ['success', "Site '$name' " . ($config[$name]['enabled'] ? 'enabled' : 'disabled')];
+                    panelLog(($config[$name]['enabled'] ? 'Enabled' : 'Disabled') . " site '$name'");
                 }
             } else {
                 $flash = ['error', "Site '$name' not found in config"];
@@ -382,6 +405,7 @@ if ($logged_in) {
                     $restartOk = reloadNginx();
                     if (!$restartOk) { $restartOk = restartNginx(); }
                     $flash = ['success', "Site '$name' updated"];
+                    panelLog("Updated site '$name'");
                 }
             } else {
                 $flash = ['error', "Site '$name' not found"];
@@ -414,15 +438,18 @@ if ($logged_in) {
         } elseif ($action === 'restart_nginx') {
             $ok = restartNginx();
             $flash = [$ok ? 'success' : 'error', $ok ? 'Nginx restarted' : 'Failed to restart Nginx'];
+            panelLog('Nginx restart: ' . ($ok ? 'done' : 'failed'));
         } elseif ($action === 'nginx_test') {
             exec('nginx -t 2>&1', $raw, $rc);
             $_SESSION['nginx_diag'] = implode("\n", $raw);
             $flash = [$rc === 0 ? 'success' : 'error', 'nginx -t ' . ($rc === 0 ? 'passed' : 'failed')];
+            panelLog('nginx -t: ' . ($rc === 0 ? 'passed' : 'failed'));
         } elseif ($action === 'check_ports') {
             exec("ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null", $raw, $rc);
             $ports = $raw ? implode("\n", $raw) : 'No output (ss/netstat not available)';
             $_SESSION['nginx_diag'] = $ports;
             $flash = ['success', 'Port check complete. See diagnostics below.'];
+            panelLog('Checked listening ports');
         } elseif ($action === 'wp_install') {
             $site_name = trim($_POST['wp_site'] ?? '');
             $wp_user = trim($_POST['wp_user'] ?? 'admin');
@@ -481,15 +508,18 @@ if ($logged_in) {
         } elseif ($action === 'tunnel_install') {
             $r = $tunnelManager->install();
             $flash = [$r['success'] ? 'success' : 'error', $r['message']];
+            panelLog('Tunnel install: ' . ($r['success'] ? 'done' : 'failed'));
         } elseif ($action === 'tunnel_login') {
             $r = $tunnelManager->login();
             if (!empty($r['url'])) {
                 $_SESSION['tunnel_login_url'] = $r['url'];
             }
             $flash = [$r['success'] ? 'success' : 'error', $r['message']];
+            panelLog('Tunnel login: ' . ($r['success'] ? 'done' : 'failed'));
         } elseif ($action === 'tunnel_logout') {
             $ok = $tunnelManager->logout();
             $flash = [$ok ? 'success' : 'error', $ok ? 'Logged out of Cloudflare' : 'Logout failed'];
+            panelLog('Tunnel logout');
         } elseif ($action === 'tunnel_create') {
             $name = trim($_POST['tunnel_name'] ?? '');
             if (!$name || !preg_match('/^[a-zA-Z0-9_-]+$/', $name)) {
@@ -497,22 +527,27 @@ if ($logged_in) {
             } else {
                 $r = $tunnelManager->createTunnel($name);
                 $flash = [$r['success'] ? 'success' : 'error', $r['message']];
+                panelLog('Tunnel create: ' . ($r['success'] ? 'done' : 'failed'));
             }
         } elseif ($action === 'tunnel_delete') {
             $id = $_POST['tunnel_id'] ?? '';
             if ($id) {
                 $r = $tunnelManager->deleteTunnel($id);
                 $flash = [$r['success'] ? 'success' : 'error', $r['message']];
+                panelLog('Tunnel deleted');
             }
         } elseif ($action === 'tunnel_start') {
             $r = $tunnelManager->start();
             $flash = [$r['success'] ? 'success' : 'error', $r['message']];
+            panelLog('Tunnel start: ' . ($r['success'] ? 'done' : 'failed'));
         } elseif ($action === 'tunnel_stop') {
             $r = $tunnelManager->stop();
             $flash = [$r['success'] ? 'success' : 'error', $r['message']];
+            panelLog('Tunnel stopped');
         } elseif ($action === 'tunnel_restart') {
             $r = $tunnelManager->restart();
             $flash = [$r['success'] ? 'success' : 'error', $r['message']];
+            panelLog('Tunnel restarted');
         } elseif ($action === 'tunnel_add_hostname') {
             $hostname = trim($_POST['hostname'] ?? '');
             $target = trim($_POST['target'] ?? '');

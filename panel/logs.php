@@ -33,7 +33,7 @@
   }
 
   function svcBadge(svc) {
-    const map = { nginx: {bg:'rgba(34,197,94,.14)',c:'#22c55e',l:'Nginx'}, 'php-fpm': {bg:'rgba(139,92,246,.14)',c:'#8b5cf6',l:'PHP'}, mariadb: {bg:'rgba(245,158,11,.14)',c:'#f59e0b',l:'MariaDB'} };
+    const map = { Panel: {bg:'rgba(59,130,246,.14)',c:'#3b82f6',l:'Panel'}, Nginx: {bg:'rgba(34,197,94,.14)',c:'#22c55e',l:'Nginx'}, PHP: {bg:'rgba(139,92,246,.14)',c:'#8b5cf6',l:'PHP'}, MariaDB: {bg:'rgba(245,158,11,.14)',c:'#f59e0b',l:'MariaDB'} };
     const m = map[svc] || {bg:'rgba(148,163,184,.14)',c:'#94a3b8',l:svc};
     return '<span class="be" style="background:' + m.bg + ';color:' + m.c + '">' + m.l + '</span>';
   }

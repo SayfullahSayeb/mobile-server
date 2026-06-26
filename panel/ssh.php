@@ -51,8 +51,7 @@
     setTimeout(() => { try { fitAddon.fit(); } catch(e) {} }, 50);
     window.addEventListener('resize', function() { if (fitAddon) { try { fitAddon.fit(); } catch(e) {} } });
 
-    term.writeln('Mobile Server Terminal - type commands and press Enter');
-    term.writeln('');
+
 
     execCmd('').then(function(r) {
       prompt = r.prompt;
