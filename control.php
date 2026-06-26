@@ -757,7 +757,6 @@ if ($logged_in) {
     $tunnelAutoStart = $tunnelManager->isAutoStartEnabled();
 
     $csrf_token = $_SESSION['csrf_token'];
-}
 ?>
 <?php if (!$logged_in): ?>
 <?php
