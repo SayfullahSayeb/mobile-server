@@ -60,6 +60,9 @@ define('NGINX_SITES_DIR', CONFIG_DIR . '/nginx-sites');
 define('SITES_JSON', CONFIG_DIR . '/sites.json');
 define('PHP_SOCKET', (function () {
     $s = trim(@exec('grep "^listen =" /data/data/com.termux/files/usr/etc/php-fpm.d/www.conf 2>/dev/null | awk "{print \$3}"') ?: '');
+    if ($s && !str_starts_with($s, 'unix:') && !str_contains($s, ':')) {
+        $s = 'unix:' . $s;
+    }
     return $s ?: 'unix:/data/data/com.termux/files/usr/var/run/php-fpm.sock';
 })());
 
