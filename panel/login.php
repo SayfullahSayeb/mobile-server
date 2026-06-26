@@ -17,6 +17,7 @@
 <?php endif; ?>
 <form method="post">
 <input type="hidden" name="login" value="1">
+<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($_SESSION['csrf_token'] ?? '') ?>">
 <input type="password" name="password" class="inp" placeholder="Password" required autofocus style="padding:13px 16px;font-size:15px;margin-bottom:16px">
 <button type="submit" class="btn btn-p btn-l btn-wd" style="padding:13px">Unlock Panel</button>
 </form>

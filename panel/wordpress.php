@@ -2,6 +2,7 @@
   <div class="st">🔷 One-Click WordPress Install</div>
   <div class="st3">Creates a site directory, downloads WordPress, sets up MariaDB, and prepares wp-config.</div>
   <form method="post">
+    <?= csrf() ?>
     <input type="hidden" name="action" value="wp_install">
     <input type="text" name="wp_site" class="inp" placeholder="Site name (e.g. myblog)" required pattern="[a-z0-9_-]+">
     <input type="text" name="wp_title" class="inp" placeholder="Site title (e.g. My Blog)">

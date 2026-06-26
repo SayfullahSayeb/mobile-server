@@ -61,12 +61,14 @@ ksort($allSites);
       <?php if (!empty($site['domain']) && $site['port']): ?>
       <span class="be <?= $site['enabled'] ? 'on' : 'off' ?>"><?= $site['enabled'] ? 'Enabled' : 'Disabled' ?></span>
       <form method="post" style="display:inline">
+        <?= csrf() ?>
         <input type="hidden" name="action" value="toggle_site">
         <input type="hidden" name="site_name" value="<?= htmlspecialchars($name) ?>">
         <button type="submit" class="btn btn-w btn-s"><?= $site['enabled'] ? 'Disable' : 'Enable' ?></button>
       </form>
       <?php endif; ?>
       <form method="post" style="display:inline" onsubmit="return confirm('Delete site &#39;<?= htmlspecialchars($name) ?>&#39; and all its files?')">
+        <?= csrf() ?>
         <input type="hidden" name="action" value="delete_site">
         <input type="hidden" name="site_name" value="<?= htmlspecialchars($name) ?>">
         <button type="submit" class="btn btn-d btn-s">🗑 Delete</button>
@@ -83,6 +85,7 @@ ksort($allSites);
   <div class="st">Create New Site</div>
   <div class="st3">Creates a site with its own domain and port (like Laragon). Access via <strong>http://domain:port</strong></div>
   <form method="post" class="fr3">
+    <?= csrf() ?>
     <input type="hidden" name="action" value="create_site">
     <input type="text" name="site_name" class="inp" placeholder="Site name (e.g. myapp)" required pattern="[a-z0-9_-]+" title="Letters, numbers, hyphens, underscores only">
     <input type="text" name="site_domain" class="inp" placeholder="Domain (e.g. myapp.test)" value="">
@@ -95,10 +98,12 @@ ksort($allSites);
   <div class="st">Nginx &amp; Hosts</div>
   <div class="df g2 fw">
     <form method="post">
+      <?= csrf() ?>
       <input type="hidden" name="action" value="restart_nginx">
       <button type="submit" class="btn btn-p btn-l">↻ Restart Nginx</button>
     </form>
     <form method="post">
+      <?= csrf() ?>
       <input type="hidden" name="action" value="update_hosts">
       <button type="submit" class="btn btn-w btn-l">🖊 Update Hosts File</button>
     </form>

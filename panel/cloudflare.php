@@ -9,6 +9,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
   <div class="st">☁️ Cloudflare Tunnel</div>
   <div class="st3">Cloudflare Tunnel (cloudflared) creates a secure tunnel from your server to the Cloudflare edge network, allowing you to expose local websites to the internet without port forwarding.</div>
   <form method="post">
+    <?= csrf() ?>
     <input type="hidden" name="action" value="tunnel_install">
     <button type="submit" class="btn btn-p btn-l">📥 Install Cloudflare Tunnel</button>
   </form>
@@ -28,12 +29,14 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
     <?php endif; ?>
     <div class="ts tm mb2">After authenticating, click "Check Status" below.</div>
     <form method="post">
+      <?= csrf() ?>
       <input type="hidden" name="action" value="tunnel_login">
       <button type="submit" class="btn btn-w">⟳ Check Authentication Status</button>
     </form>
   </div>
   <?php else: ?>
   <form method="post">
+    <?= csrf() ?>
     <input type="hidden" name="action" value="tunnel_login">
     <button type="submit" class="btn btn-p btn-l">🔑 Login to Cloudflare</button>
   </form>
@@ -69,6 +72,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       <span class="be on">Active</span>
       <?php else: ?>
       <form method="post" style="display:inline">
+        <?= csrf() ?>
         <input type="hidden" name="action" value="tunnel_select">
         <input type="hidden" name="tunnel_id" value="<?= htmlspecialchars($t['id']) ?>">
         <input type="hidden" name="tunnel_name" value="<?= htmlspecialchars($t['name']) ?>">
@@ -76,6 +80,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       </form>
       <?php endif; ?>
       <form method="post" style="display:inline" onsubmit="return confirm('Delete tunnel &#39;<?= htmlspecialchars($t['name']) ?>&#39;?')">
+        <?= csrf() ?>
         <input type="hidden" name="action" value="tunnel_delete">
         <input type="hidden" name="tunnel_id" value="<?= htmlspecialchars($t['id']) ?>">
         <button type="submit" class="btn btn-d btn-s">🗑 Delete</button>
@@ -88,6 +93,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
   <div class="st2">Create New Tunnel</div>
   <div style="background:rgba(15,23,42,.4);padding:14px;border-radius:var(--rs)">
     <form method="post" class="fr">
+      <?= csrf() ?>
       <input type="hidden" name="action" value="tunnel_create">
       <input type="text" name="tunnel_name" class="inp" placeholder="Tunnel name (e.g., my-server)" required pattern="[a-zA-Z0-9_-]+" title="Letters, numbers, hyphens, underscores">
       <button type="submit" class="btn btn-p">➕ Create Tunnel</button>
@@ -103,9 +109,9 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       <span class="bdg <?= $ts['running'] ? 'on' : 'off' ?>"><span class="dt"></span><?= $ts['running'] ? 'Running' : 'Stopped' ?></span>
     </div>
     <div class="df ac g2 fw">
-      <form method="post"><input type="hidden" name="action" value="tunnel_start"><button type="submit" class="btn btn-st btn-s" <?= $ts['running'] ? 'disabled' : '' ?>>▶ Start</button></form>
-      <form method="post"><input type="hidden" name="action" value="tunnel_stop"><button type="submit" class="btn btn-sp btn-s" onclick="return confirm('Stop tunnel?')" <?= !$ts['running'] ? 'disabled' : '' ?>>■ Stop</button></form>
-      <form method="post"><input type="hidden" name="action" value="tunnel_restart"><button type="submit" class="btn btn-rs btn-s" onclick="return confirm('Restart tunnel?')">↻ Restart</button></form>
+      <form method="post"><?= csrf() ?><input type="hidden" name="action" value="tunnel_start"><button type="submit" class="btn btn-st btn-s" <?= $ts['running'] ? 'disabled' : '' ?>>▶ Start</button></form>
+      <form method="post"><?= csrf() ?><input type="hidden" name="action" value="tunnel_stop"><button type="submit" class="btn btn-sp btn-s" onclick="return confirm('Stop tunnel?')" <?= !$ts['running'] ? 'disabled' : '' ?>>■ Stop</button></form>
+      <form method="post"><?= csrf() ?><input type="hidden" name="action" value="tunnel_restart"><button type="submit" class="btn btn-rs btn-s" onclick="return confirm('Restart tunnel?')">↻ Restart</button></form>
     </div>
   </div>
   <?php if ($ts['running'] && !empty($ts['urls'])): ?>
@@ -134,6 +140,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
       <div style="font-size:10px;color:var(--text3);margin-top:2px">→ <?= htmlspecialchars($target) ?></div>
     </div>
     <form method="post" style="display:inline" onsubmit="return confirm('Remove hostname <?= htmlspecialchars($hostname) ?>?')">
+      <?= csrf() ?>
       <input type="hidden" name="action" value="tunnel_remove_hostname">
       <input type="hidden" name="hostname" value="<?= htmlspecialchars($hostname) ?>">
       <button type="submit" class="btn btn-d btn-s">🗑 Remove</button>
@@ -145,6 +152,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
   <div class="st2">Add Hostname</div>
   <div style="background:rgba(15,23,42,.4);padding:14px;border-radius:var(--rs)">
     <form method="post" class="fr3">
+      <?= csrf() ?>
       <input type="hidden" name="action" value="tunnel_add_hostname">
       <input type="text" name="hostname" class="inp" placeholder="e.g., app.mydomain.com" required>
       <input type="text" name="target" class="inp" placeholder="e.g., http://127.0.0.1:8080" value="http://127.0.0.1:8080">
@@ -161,6 +169,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
 <div class="sec">
   <div class="st">⚙️ Auto-Start</div>
   <form method="post">
+    <?= csrf() ?>
     <input type="hidden" name="action" value="tunnel_set_autostart">
     <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
       <input type="checkbox" name="auto_start" value="1" <?= $tunnelAutoStart ? 'checked' : '' ?> onchange="this.form.submit()" style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer">
@@ -179,6 +188,7 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
         <button type="submit" class="btn btn-w btn-s">⟳ Refresh</button>
       </form>
       <form method="post">
+        <?= csrf() ?>
         <input type="hidden" name="action" value="tunnel_clear_logs">
         <button type="submit" class="btn btn-d btn-s" onclick="return confirm('Clear tunnel logs?')">🗑 Clear</button>
       </form>

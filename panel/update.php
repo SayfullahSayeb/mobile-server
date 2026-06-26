@@ -18,6 +18,7 @@
     <div style="color:var(--orange);font-size:11px;font-weight:500">⚠ Your sites, databases, tunnel config, and other data will not be affected.</div>
   </div>
   <form method="post" onsubmit="return confirm('Update system files from GitHub? This will overwrite core files.')">
+    <?= csrf() ?>
     <input type="hidden" name="action" value="update_system">
     <button type="submit" class="btn btn-p btn-l">📥 Update from GitHub</button>
   </form>
