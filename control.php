@@ -581,7 +581,6 @@ if ($logged_in) {
             }
         } elseif ($action === 'update_system') {
             $target_dir = __DIR__;
-            $tmp_dir = '/tmp/mobile-server-update-' . bin2hex(random_bytes(4));
             $repo_url = 'https://github.com/SayfullahSayeb/mobile-server.git';
             $hash_file = CONFIG_DIR . '/.update_hash';
             $results = [];
@@ -597,33 +596,22 @@ if ($logged_in) {
                     $flash_msg = 'Update check completed.<br>' . implode('<br>', $results);
                     $flash = [$flash_type, $flash_msg];
                 } else {
-                    @mkdir($tmp_dir, 0755, true);
-                    exec("git clone --depth 1 " . escapeshellarg($repo_url) . " " . escapeshellarg($tmp_dir) . " 2>&1", $raw, $rc);
+                    exec("cd " . escapeshellarg($target_dir) . " && git fetch origin 2>&1", $raw, $rc);
                     if ($rc === 0) {
-                        $results[] = '<i class="fas fa-check"></i> Repository cloned (commit ' . substr($latest_hash, 0, 8) . ')';
-                        $iterator = new RecursiveIteratorIterator(
-                            new RecursiveDirectoryIterator($tmp_dir, RecursiveDirectoryIterator::SKIP_DOTS)
-                        );
-                        foreach ($iterator as $file) {
-                            $relPath = substr($file->getPathname(), strlen($tmp_dir) + 1);
-                            if (strpos($relPath, '.git') === 0 || strpos($relPath, '.git/') === 0) continue;
-                            if ($file->isDir()) continue;
-                            $dest = $target_dir . '/' . $relPath;
-                            $destDir = dirname($dest);
-                            if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
-                            if (@copy($file->getPathname(), $dest)) {
-                                $results[] = '<i class="fas fa-check"></i> Updated ' . $relPath;
-                            } else {
-                                $all_ok = false;
-                                $results[] = '<i class="fas fa-times"></i> Failed to copy ' . $relPath;
-                            }
+                        $results[] = '<i class="fas fa-check"></i> Fetched latest changes';
+                        exec("cd " . escapeshellarg($target_dir) . " && git pull 2>&1", $raw2, $rc2);
+                        if ($rc2 === 0) {
+                            $all_ok = true;
+                            $results[] = '<i class="fas fa-check"></i> Pulled commit ' . substr($latest_hash, 0, 8);
+                        } else {
+                            $all_ok = false;
+                            $results[] = '<i class="fas fa-times"></i> Pull failed: ' . implode(' ', $raw2);
                         }
-                        file_put_contents($hash_file, $latest_hash);
-                        exec("rm -rf " . escapeshellarg($tmp_dir) . " 2>&1");
                     } else {
                         $all_ok = false;
-                        $results[] = '<i class="fas fa-times"></i> Failed to clone repository: ' . implode(' ', $raw);
+                        $results[] = '<i class="fas fa-times"></i> Fetch failed: ' . implode(' ', $raw);
                     }
+                    if ($all_ok) file_put_contents($hash_file, $latest_hash);
                     $flash_type = $all_ok ? 'success' : 'error';
                     $flash_msg = 'Update ' . ($all_ok ? 'completed successfully!' : 'completed with errors.') . '<br>' . implode('<br>', $results);
                     $flash = [$flash_type, $flash_msg];
