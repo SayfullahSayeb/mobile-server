@@ -415,16 +415,14 @@ if ($logged_in) {
                 $publicHtml = SITES_DIR . '/' . $name . '/public_html';
                 $legacy = DEFAULT_SITE_DIR . '/' . $name;
                 $target = is_dir($publicHtml) ? $publicHtml : (is_dir($legacy) ? $legacy : null);
-                if ($target && $deleteFiles) {
-                    $fullPath = dirname($target) === $publicHtml ? dirname($target) : $target;
-                    exec("rm -rf " . escapeshellarg($fullPath), $raw, $rc);
-                } else {
-                    $rc = 0;
-                }
                 $restartOk = reloadNginx();
                 if (!$restartOk) { $restartOk = restartNginx(); }
+                if ($deleteFiles) {
+                    $fullPath = dirname($target) === $publicHtml ? dirname($target) : $target;
+                    exec("rm -rf " . escapeshellarg($fullPath) . " >/dev/null 2>&1 &");
+                }
                 $msg = "Site '$name' deleted" . ($deleteFiles ? '' : ' (config only, files kept)');
-                $flash = [$rc === 0 ? 'success' : 'error', $rc === 0 ? $msg : "Failed to delete '$name'"];
+                $flash = ['success', $msg];
                 panelLog("Deleted site '$name'" . ($deleteFiles ? '' : ' (kept files)'));
             } else {
                 $flash = ['error', "Invalid site name"];
