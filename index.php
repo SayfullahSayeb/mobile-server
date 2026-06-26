@@ -1,6 +1,32 @@
 <?php
 date_default_timezone_set('Asia/Dhaka');
 
+// Route phpMyAdmin requests to the Termux phpMyAdmin installation
+$pmaPath = '/data/data/com.termux/files/usr/share/phpmyadmin';
+if (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/phpmyadmin') === 0) {
+    if (is_dir($pmaPath)) {
+        $reqPath = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $relPath = substr($reqPath, strlen('/phpmyadmin'));
+        if (!$relPath || $relPath === '/') {
+            $_SERVER['SCRIPT_NAME'] = '/phpmyadmin/index.php';
+            $_SERVER['SCRIPT_FILENAME'] = $pmaPath . '/index.php';
+            chdir($pmaPath);
+            require $pmaPath . '/index.php';
+            exit;
+        }
+        $file = $pmaPath . '/' . ltrim($relPath, '/');
+        if (is_file($file)) {
+            $mime = mime_content_type($file) ?: 'application/octet-stream';
+            header('Content-Type: ' . $mime);
+            readfile($file);
+            exit;
+        }
+    }
+    http_response_code(404);
+    echo 'phpMyAdmin not found. Install: pkg install phpmyadmin';
+    exit;
+}
+
 function status($process) {
     exec("pgrep -x " . escapeshellarg($process), $out, $code);
     return $code === 0;

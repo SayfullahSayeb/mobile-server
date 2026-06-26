@@ -47,6 +47,9 @@ function csrf(): string {
     <a href="?tab=files" class="nav-i <?= $tab==='files'?'act':'' ?>">
       <span class="ni"><i class="fas fa-folder"></i></span><span class="nl">File Manager</span>
     </a>
+    <a href="/phpmyadmin" target="_blank" rel="noopener" class="nav-i">
+      <span class="ni"><i class="fas fa-database"></i></span><span class="nl">phpMyAdmin</span>
+    </a>
     <a href="?tab=settings" class="nav-i <?= $tab==='settings'?'act':'' ?>">
       <span class="ni"><i class="fas fa-cog"></i></span><span class="nl">Settings</span>
     </a>
