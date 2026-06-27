@@ -94,6 +94,11 @@ class CloudflareTunnelProvider implements TunnelProvider {
             return ['success' => true, 'url' => '', 'message' => 'Already authenticated'];
         }
 
+        if (!$this->isInstalled()) {
+            return ['success' => false, 'url' => '', 'message' => 'Cloudflare Tunnel is not installed. Install it first.'];
+        }
+
+        $bin = $this->binary();
         $this->ensureDir($this->cloudflaredDir);
 
         $loginPidFile = $this->getLoginPidFile();
@@ -110,7 +115,6 @@ class CloudflareTunnelProvider implements TunnelProvider {
 
         @unlink($outputFile);
 
-        $bin = $this->binary();
         $cmd = "nohup " . escapeshellarg($bin) . " tunnel login > " . escapeshellarg($outputFile) . " 2>&1 & echo $!";
         exec($cmd, $out, $rc);
 
@@ -120,10 +124,27 @@ class CloudflareTunnelProvider implements TunnelProvider {
 
         $pid = (int)$out[0];
         file_put_contents($loginPidFile, (string)$pid);
-        sleep(2);
 
-        $url = $this->extractLoginUrl($outputFile);
-        return ['success' => true, 'url' => $url, 'message' => 'Open the URL in a browser to authenticate.'];
+        // Poll for the login URL with retries (up to ~10 seconds)
+        $url = '';
+        for ($i = 0; $i < 5; $i++) {
+            sleep(2);
+            $url = $this->extractLoginUrl($outputFile);
+            if ($url) break;
+            if (!$this->isProcessRunning($pid)) {
+                // Process exited — check output for error
+                $output = is_file($outputFile) ? file_get_contents($outputFile) : '';
+                if ($output && stripos($output, 'error') !== false) {
+                    $errorMsg = trim(substr($output, 0, 500));
+                    $errorMsg = preg_replace('/https?:\/\/[^\s]+/i', '', $errorMsg);
+                    return ['success' => false, 'url' => '', 'message' => 'Login failed: ' . $errorMsg];
+                }
+                return ['success' => false, 'url' => '', 'message' => 'Login process exited unexpectedly. Try again.'];
+            }
+        }
+
+        return ['success' => true, 'url' => $url, 'message' => $url ? 'Open the URL in a browser to authenticate.' : 'Login started. Check status in a few seconds.'];
+
     }
 
     private function extractLoginUrl(string $outputFile): string {

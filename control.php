@@ -212,14 +212,14 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
     setProgress($siteName, 'Setting up database...', 50);
     $db_name = 'wp_' . str_replace('-', '_', $siteName);
     exec("pgrep -x mariadbd >/dev/null 2>&1 || pgrep mariadbd >/dev/null 2>&1 || pidof mariadbd >/dev/null 2>&1", $mdbchk, $mdbrc);
-    if ($mdbrc === 0) {
-        exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
-        exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
-        exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
-        exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
-    } else {
-        setProgress($siteName, 'Warning: MariaDB not running, skipping DB setup', 60);
+    if ($mdbrc !== 0) {
+        setProgress($siteName, 'Failed: MariaDB is not running. Start MariaDB first.', 0, 'error');
+        return [false, 'MariaDB is not running. Start MariaDB from the Dashboard and try again.'];
     }
+    exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
+    exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
+    exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
+    exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
 
     setProgress($siteName, 'Configuring wp-config.php...', 75);
     $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
@@ -445,8 +445,11 @@ if ($logged_in) {
                             file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                             rewriteNginxMainConfig();
                             $db_name = str_replace('-', '_', $name);
-                            exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
-                            exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rcDb2);
+                            exec("pgrep -x mariadbd >/dev/null 2>&1 || pgrep mariadbd >/dev/null 2>&1 || pidof mariadbd >/dev/null 2>&1", $mdbchk, $mdbrc);
+                            if ($mdbrc === 0) {
+                                exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
+                                exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rcDb2);
+                            }
                             $wpResult = [true, ''];
                             if ($type === 'wordpress') {
                                 $wpUser = trim($_POST['wp_user'] ?? 'admin');
@@ -508,7 +511,8 @@ if ($logged_in) {
                     $msg = "Site '$name' deleted" . ($deleteFiles ? '' : ' (config only, files kept)');
                     $remaining = glob(NGINX_SITES_DIR . '/*.conf');
                     if (empty($remaining)) {
-                        $placeholder = NGINX_SITES_DIR . '/.placeholder.conf';
+                        @mkdir(NGINX_SITES_DIR, 0755, true);
+                        $placeholder = NGINX_SITES_DIR . '/_placeholder.conf';
                         if (!is_file($placeholder)) {
                             file_put_contents($placeholder, "# Placeholder — no sites configured\n");
                         }
@@ -647,27 +651,32 @@ if ($logged_in) {
                             if (is_dir($wp_temp)) {
                                 exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($site_path . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
                             }
-                            $db_name = 'wp_' . str_replace('-', '_', $site_name);
-                            exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
-                            exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
-                            exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
-                            $wp_config = @file_get_contents($site_path . '/wp-config-sample.php');
-                            if ($wp_config) {
-                                @exec("curl -sL https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null");
-                                $wp_config = str_replace(
-                                    ["'database_name_here'", "'username_here'", "'password_here'"],
-                                    ["'$db_name'", "'$db_user'", "'$db_pass'"],
-                                    $wp_config
-                                );
-                                foreach (['AUTH_KEY','SECURE_AUTH_KEY','LOGGED_IN_KEY','NONCE_KEY','AUTH_SALT','SECURE_AUTH_SALT','LOGGED_IN_SALT','NONCE_SALT'] as $key) {
-                                    $val = bin2hex(random_bytes(16));
-                                    $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
+                            exec("pgrep -x mariadbd >/dev/null 2>&1 || pgrep mariadbd >/dev/null 2>&1 || pidof mariadbd >/dev/null 2>&1", $mdbchk, $mdbrc);
+                            if ($mdbrc !== 0) {
+                                $flash = ['error', 'MariaDB is not running. Start MariaDB from the Dashboard and try again.'];
+                            } else {
+                                $db_name = 'wp_' . str_replace('-', '_', $site_name);
+                                exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
+                                exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
+                                exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
+                                $wp_config = @file_get_contents($site_path . '/wp-config-sample.php');
+                                if ($wp_config) {
+                                    @exec("curl -sL https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null");
+                                    $wp_config = str_replace(
+                                        ["'database_name_here'", "'username_here'", "'password_here'"],
+                                        ["'$db_name'", "'$db_user'", "'$db_pass'"],
+                                        $wp_config
+                                    );
+                                    foreach (['AUTH_KEY','SECURE_AUTH_KEY','LOGGED_IN_KEY','NONCE_KEY','AUTH_SALT','SECURE_AUTH_SALT','LOGGED_IN_SALT','NONCE_SALT'] as $key) {
+                                        $val = bin2hex(random_bytes(16));
+                                        $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
+                                    }
+                                    file_put_contents($site_path . '/wp-config.php', $wp_config);
                                 }
-                                file_put_contents($site_path . '/wp-config.php', $wp_config);
+                                @chmod($site_path, 0755);
+                                @unlink($zip);
+                                $flash = ['success', "WordPress installed! Site: <a href='/$site_name/wp-admin/install.php' style='color:#3b82f6'>/$site_name/wp-admin/install.php</a>"];
                             }
-                            @chmod($site_path, 0755);
-                            @unlink($zip);
-                            $flash = ['success', "WordPress installed! Site: <a href='/$site_name/wp-admin/install.php' style='color:#3b82f6'>/$site_name/wp-admin/install.php</a>"];
                         }
                     }
                 }

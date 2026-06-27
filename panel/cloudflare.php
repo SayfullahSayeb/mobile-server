@@ -26,6 +26,8 @@ $tunnelName = $tunnelManager->getActiveTunnelName();
     <?php if ($tunnelLoginUrl): ?>
     <div class="ts tm mb2">Open this URL in a browser to authenticate with Cloudflare:</div>
     <div style="background:rgba(15,23,42,.5);padding:8px 12px;border-radius:var(--rs);word-break:break-all;color:var(--blue);font-family:monospace;margin-bottom:8px"><?= htmlspecialchars($tunnelLoginUrl) ?></div>
+    <?php else: ?>
+    <div class="ts tm mb2">Waiting for Cloudflare login URL... Click "Check Status" to refresh.</div>
     <?php endif; ?>
     <div class="ts tm mb2">After authenticating, click "Check Status" below.</div>
     <form method="post">
