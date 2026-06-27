@@ -292,6 +292,7 @@ if ($logged_in) {
                 panelLog(ucfirst($action) . " $svc: " . ($rc === 0 ? 'done' : 'failed'));
             }
         } elseif ($action === 'create_site') {
+            panelLog("[create_site] POST received — name=" . ($_POST['site_name'] ?? '') . " type=" . ($_POST['site_type'] ?? ''));
             $name = trim($_POST['site_name'] ?? '');
             $domain = trim($_POST['site_domain'] ?? '');
             if (!$domain) $domain = $ip_addr ?? 'localhost';
