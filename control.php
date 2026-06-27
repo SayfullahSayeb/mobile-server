@@ -191,7 +191,7 @@ function getWpZip(): string {
 
 function installWordPress(string $sitePath, string $siteName, string $wpUser, string $wpPass, string $wpEmail, string $wpTitle): array {
     global $db_user;
-    $db_pass = bin2hex(random_bytes(12));
+    $db_pass = '';
 
     @set_time_limit(0);
     setProgress($siteName, 'Preparing site...', 5);
@@ -246,8 +246,6 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
         setProgress($siteName, "Failed: could not create database ($err)", 0, 'error');
         return [false, "Failed to create WordPress database. MariaDB error: $err"];
     }
-    exec("$mdbCli -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
-    exec("$mdbCli -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
     exec("$mdbCli -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
 
     setProgress($siteName, 'Configuring wp-config.php...', 75);
@@ -367,7 +365,7 @@ foreach (['nginx', 'php-fpm', 'mariadb'] as $l) {
     $log_files[$l] = is_file($p) ? $p : null;
 }
 
-$db_user = 'wp_user';
+$db_user = 'root';
 
 $logged_in = !empty($_SESSION['authenticated']);
 
@@ -651,7 +649,7 @@ if ($logged_in) {
             $wp_pass = trim($_POST['wp_pass'] ?? '');
             $wp_email = trim($_POST['wp_email'] ?? 'admin@localhost.local');
             $wp_title = trim($_POST['wp_title'] ?? 'My Site');
-            $db_pass = bin2hex(random_bytes(12));
+            $db_pass = '';
 
             if (!$site_name || !preg_match('/^[a-z0-9_-]+$/', $site_name)) {
                 $flash = ['error', 'Invalid site name'];
@@ -691,7 +689,6 @@ if ($logged_in) {
                             } else {
                                 $db_name = 'wp_' . str_replace('-', '_', $site_name);
                                 exec("$mdbCli -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
-                                exec("$mdbCli -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
                                 exec("$mdbCli -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
                                 $wp_config = @file_get_contents($site_path . '/wp-config-sample.php');
                                 if ($wp_config) {
