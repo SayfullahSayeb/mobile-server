@@ -428,6 +428,9 @@ if ($logged_in) {
                             file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                             rewriteNginxMainConfig();
                             file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
+                            $db_name = str_replace('-', '_', $name);
+                            exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
+                            exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rcDb2);
                             $wpResult = [true, ''];
                             if ($type === 'wordpress') {
                                 $wpUser = trim($_POST['wp_user'] ?? 'admin');
@@ -482,6 +485,8 @@ if ($logged_in) {
                 if ($deleteFiles) {
                     $fullPath = dirname($target) === $publicHtml ? dirname($target) : $target;
                     exec("rm -rf " . escapeshellarg($fullPath) . " >/dev/null 2>&1 &");
+                    $db_name = str_replace('-', '_', $name);
+                    exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
                 }
                 $msg = "Site '$name' deleted" . ($deleteFiles ? '' : ' (config only, files kept)');
                 $flash = ['success', $msg];
