@@ -151,9 +151,16 @@ function getWpZip(): string {
         return $zipPath;
     }
 
+    // Check that required tools exist
+    @exec("command -v unzip 2>/dev/null || which unzip 2>/dev/null", $unzipCheck, $unzipRc);
+    if ($unzipRc !== 0) {
+        @unlink($tmpPath);
+        return is_file($zipPath) ? $zipPath : '';
+    }
+
     // Download fresh copy to temp file first
     @unlink($tmpPath);
-    exec("curl -sL https://wordpress.org/latest.zip -o " . escapeshellarg($tmpPath) . " 2>&1", $raw, $rc);
+    exec("curl -sL --connect-timeout 30 --max-time 120 https://wordpress.org/latest.zip -o " . escapeshellarg($tmpPath) . " 2>&1", $raw, $rc);
 
     if ($rc === 0 && is_file($tmpPath)) {
         // Download succeeded — replace old zip
@@ -175,7 +182,8 @@ function getWpZip(): string {
 }
 
 function installWordPress(string $sitePath, string $siteName, string $wpUser, string $wpPass, string $wpEmail, string $wpTitle): array {
-    global $db_user, $db_pass;
+    global $db_user;
+    $db_pass = bin2hex(random_bytes(12));
 
     @set_time_limit(0);
     setProgress($siteName, 'Preparing site...', 5);
@@ -186,23 +194,32 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
 
     setProgress($siteName, 'Downloading WordPress...', 10);
     $zip = getWpZip();
-    if (!$zip) { setProgress($siteName, 'Failed: could not download WordPress', 0, 'error'); return [false, 'Failed to download WordPress']; }
-    if (!is_file($zip)) { setProgress($siteName, 'Failed: WordPress zip not found', 0, 'error'); return [false, 'WordPress zip not found']; }
+    if (!$zip) { setProgress($siteName, 'Failed: could not download WordPress — check internet connection', 0, 'error'); return [false, 'Failed to download WordPress — check internet connection']; }
+    if (!is_file($zip)) { setProgress($siteName, 'Failed: WordPress zip not found after download', 0, 'error'); return [false, 'WordPress zip not found after download']; }
 
     setProgress($siteName, 'Extracting WordPress...', 30);
     exec("unzip -qo " . escapeshellarg($zip) . " -d " . escapeshellarg(dirname($sitePath)) . " 2>&1", $raw, $rc2);
-    if ($rc2 !== 0) { setProgress($siteName, 'Failed: could not extract WordPress', 0, 'error'); return [false, 'Failed to extract WordPress']; }
+    if ($rc2 !== 0) { setProgress($siteName, 'Failed: could not extract WordPress (is unzip installed?)', 0, 'error'); return [false, 'Failed to extract WordPress — ensure "unzip" is installed']; }
     $wp_temp = dirname($sitePath) . '/wordpress';
     if (is_dir($wp_temp)) {
         exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($sitePath . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
     }
+    if (!is_file($sitePath . '/wp-includes/version.php')) {
+        setProgress($siteName, 'Failed: WordPress files missing after extraction', 0, 'error');
+        return [false, 'WordPress files missing after extraction'];
+    }
 
     setProgress($siteName, 'Setting up database...', 50);
     $db_name = 'wp_' . str_replace('-', '_', $siteName);
-    exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
-    exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
-    exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
-    exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
+    exec("pgrep -x mariadbd >/dev/null 2>&1 || pgrep mariadbd >/dev/null 2>&1 || pidof mariadbd >/dev/null 2>&1", $mdbchk, $mdbrc);
+    if ($mdbrc === 0) {
+        exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
+        exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
+        exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
+        exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
+    } else {
+        setProgress($siteName, 'Warning: MariaDB not running, skipping DB setup', 60);
+    }
 
     setProgress($siteName, 'Configuring wp-config.php...', 75);
     $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
@@ -221,6 +238,7 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
         return [false, 'Failed to write wp-config.php'];
     }
     @chmod($sitePath, 0755);
+    @chmod($sitePath . '/wp-content', 0755);
     setProgress($siteName, 'Finalizing...', 95);
     return [true, ''];
 }
@@ -274,12 +292,21 @@ function restartNginx(): bool {
         error_log('nginx -t: ' . implode("\n", $raw));
         return false;
     }
-    exec('nginx -s stop 2>/dev/null; sleep 1; nginx 2>&1', $raw, $rc);
-    if ($rc !== 0) {
+    // Stop and start — retry if first attempt fails
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        exec('nginx -s stop 2>/dev/null; sleep 1; nginx 2>&1', $raw, $rc);
+        if ($rc === 0) break;
         exec('pkill nginx 2>/dev/null; sleep 1; nginx 2>&1', $raw, $rc);
+        if ($rc === 0) break;
     }
     sleep(1);
     exec('pgrep -x nginx 2>/dev/null', $pout, $prc);
+    if ($prc !== 0) {
+        // Last resort: try starting nginx one more time
+        exec('nginx 2>&1', $raw, $rc);
+        sleep(1);
+        exec('pgrep -x nginx 2>/dev/null', $pout, $prc);
+    }
     return $prc === 0;
 }
 
@@ -311,7 +338,6 @@ foreach (['nginx', 'php-fpm', 'mariadb'] as $l) {
 }
 
 $db_user = 'wp_user';
-$db_pass = bin2hex(random_bytes(12));
 
 $logged_in = !empty($_SESSION['authenticated']);
 
@@ -339,18 +365,9 @@ if (isset($_GET['logout'])) {
 
 $tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? 'dashboard');
 
-// Detect device IP early (needed before action handling)
-@exec("ip -4 -o addr show wlan0 2>/dev/null | awk '{print \$4}' | cut -d/ -f1", $ip_out, $ip_rc);
-$ip_addr = ($ip_rc === 0 && !empty($ip_out)) ? $ip_out[0] : (trim(@shell_exec('hostname -I 2>/dev/null') ?: ''));
-if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP) || $ip_addr === '127.0.0.1') {
-    $ip_addr = @trim(shell_exec("ip route get 1 2>/dev/null | awk '{print $NF; exit}'"));
-}
-if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP) || $ip_addr === '127.0.0.1') {
-    $ip_addr = @trim(shell_exec("ifconfig 2>/dev/null | grep -E 'inet ' | grep -v 127.0.0.1 | awk '{print \$2}'"));
-}
-if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP) || $ip_addr === '127.0.0.1') {
-    $ip_addr = gethostbyname(gethostname());
-}
+// Detect device IP (one fast command, PHP fallback)
+@exec("ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1", $ip_out, $ip_rc);
+$ip_addr = ($ip_rc === 0 && !empty($ip_out)) ? $ip_out[0] : gethostbyname(gethostname());
 if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP)) {
     $ip_addr = 'localhost';
 }
@@ -427,7 +444,6 @@ if ($logged_in) {
                             if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
                             file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                             rewriteNginxMainConfig();
-                            file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to $name</h1>';\n");
                             $db_name = str_replace('-', '_', $name);
                             exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
                             exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rcDb2);
@@ -445,6 +461,7 @@ if ($logged_in) {
                                     $wpResult = installWordPress($publicHtml, $name, $wpUser, $wpPass, $wpEmail, $wpTitle);
                                 }
                             } else {
+                                file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to " . htmlspecialchars($name, ENT_QUOTES) . "</h1>';\n");
                                 clearProgress($name);
                             }
                             if (!isset($flash)) {
@@ -474,23 +491,39 @@ if ($logged_in) {
             $deleteFiles = !empty($_POST['delete_files']);
             if ($name && preg_match('/^[a-z0-9_-]+$/', $name)) {
                 $config = getSitesConfig();
-                unset($config[$name]);
-                saveSitesConfig($config);
-                @unlink(NGINX_SITES_DIR . '/' . $name . '.conf');
-                $publicHtml = SITES_DIR . '/' . $name . '/public_html';
-                $legacy = DEFAULT_SITE_DIR . '/' . $name;
-                $target = is_dir($publicHtml) ? $publicHtml : (is_dir($legacy) ? $legacy : null);
-                $restartOk = reloadNginx();
-                if (!$restartOk) { $restartOk = restartNginx(); }
-                if ($deleteFiles) {
-                    $fullPath = dirname($target) === $publicHtml ? dirname($target) : $target;
-                    exec("rm -rf " . escapeshellarg($fullPath) . " >/dev/null 2>&1 &");
-                    $db_name = str_replace('-', '_', $name);
-                    exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
+                if (!isset($config[$name])) {
+                    $flash = ['error', "Site '$name' not found in config"];
+                } else {
+                    unset($config[$name]);
+                    saveSitesConfig($config);
+                    @unlink(NGINX_SITES_DIR . '/' . $name . '.conf');
+                    if ($deleteFiles) {
+                        $siteDir = SITES_DIR . '/' . $name;
+                        if (is_dir($siteDir)) {
+                            exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
+                        }
+                        $db_name = str_replace('-', '_', $name);
+                        exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
+                    }
+                    $msg = "Site '$name' deleted" . ($deleteFiles ? '' : ' (config only, files kept)');
+                    $remaining = glob(NGINX_SITES_DIR . '/*.conf');
+                    if (empty($remaining)) {
+                        $placeholder = NGINX_SITES_DIR . '/.placeholder.conf';
+                        if (!is_file($placeholder)) {
+                            file_put_contents($placeholder, "# Placeholder — no sites configured\n");
+                        }
+                    }
+                    $reloadOk = reloadNginx();
+                    if (!$reloadOk) {
+                        $reloadOk = reloadNginx();
+                    }
+                    if ($reloadOk) {
+                        $flash = ['success', $msg];
+                    } else {
+                        $flash = ['warning', "Site '$name' deleted but nginx reload failed — run 'nginx -t' in Termux to diagnose"];
+                    }
+                    panelLog("Deleted site '$name'" . ($deleteFiles ? '' : ' (kept files)'));
                 }
-                $msg = "Site '$name' deleted" . ($deleteFiles ? '' : ' (config only, files kept)');
-                $flash = ['success', $msg];
-                panelLog("Deleted site '$name'" . ($deleteFiles ? '' : ' (kept files)'));
             } else {
                 $flash = ['error', "Invalid site name"];
             }
@@ -589,6 +622,7 @@ if ($logged_in) {
             $wp_pass = trim($_POST['wp_pass'] ?? '');
             $wp_email = trim($_POST['wp_email'] ?? 'admin@localhost.local');
             $wp_title = trim($_POST['wp_title'] ?? 'My Site');
+            $db_pass = bin2hex(random_bytes(12));
 
             if (!$site_name || !preg_match('/^[a-z0-9_-]+$/', $site_name)) {
                 $flash = ['error', 'Invalid site name'];
@@ -837,10 +871,19 @@ if ($logged_in) {
 
     $https_enabled = is_file(SSL_DIR . '/cert.pem') && is_file(SSL_DIR . '/key.pem');
     $status = [];
+    $serviceMap = ['nginx' => 'Nginx', 'php-fpm' => 'PHP-FPM', 'mariadbd' => 'MariaDB'];
+    @exec("for p in nginx php-fpm mariadbd; do pgrep -x \"\$p\" >/dev/null 2>&1 && echo \"\$p:1\" || echo \"\$p:0\"; done", $pout, $prc);
+    foreach ($pout as $line) {
+        $parts = explode(':', $line, 2);
+        if (count($parts) === 2 && isset($serviceMap[$parts[0]])) {
+            $status[$serviceMap[$parts[0]]] = ($parts[1] === '1');
+        }
+    }
     foreach ($services as $name => $s) {
-        $p = $s['process'];
-        @exec("pgrep -x '$p' 2>/dev/null || pgrep '$p' 2>/dev/null || pidof '$p' 2>/dev/null || (ps aux 2>/dev/null | grep -v grep | grep -q '$p')", $out, $code);
-        $status[$name] = $code === 0;
+        if (!isset($status[$name])) {
+            @exec("pgrep -x '" . $s['process'] . "' 2>/dev/null || pgrep '" . $s['process'] . "' 2>/dev/null || pidof '" . $s['process'] . "' 2>/dev/null", $out, $code);
+            $status[$name] = $code === 0;
+        }
     }
 
     $hostname   = gethostname();
@@ -858,9 +901,10 @@ if ($logged_in) {
     if ($tunnelLoginStatus === 'completed') {
         $_SESSION['tunnel_login_url'] = '';
     }
-    $tunnelHealth = $tunnelManager->healthStatus();
     $tunnelHostnames = $tunnelManager->getHostnames();
     $tunnelAutoStart = $tunnelManager->isAutoStartEnabled();
+    // healthStatus is expensive — only compute on pages that display it
+    $tunnelHealth = in_array($tab, ['dashboard', 'cloudflare']) ? $tunnelManager->healthStatus($tunnelStatus) : ['healthy' => true, 'issues' => [], 'status' => 'unknown'];
 
     $csrf_token = $_SESSION['csrf_token'];
 }

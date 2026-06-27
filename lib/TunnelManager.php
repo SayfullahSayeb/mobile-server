@@ -215,7 +215,7 @@ class TunnelManager {
         return $result;
     }
 
-    public function healthStatus(): array {
+    public function healthStatus(?array $existingStatus = null): array {
         $issues = [];
 
         if (!$this->provider->isInstalled()) {
@@ -230,12 +230,7 @@ class TunnelManager {
             return ['healthy' => false, 'issues' => ['No tunnel configured'], 'status' => 'no_tunnel'];
         }
 
-        exec('ping -c 1 -W 3 1.1.1.1 2>/dev/null', $out, $rc);
-        if ($rc !== 0) {
-            $issues[] = 'Internet unavailable';
-        }
-
-        $status = $this->provider->status($tunnelId);
+        $status = $existingStatus ?? $this->provider->status($tunnelId);
         if (!$status['running']) {
             $issues[] = 'Tunnel is not running';
         }
