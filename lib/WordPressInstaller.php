@@ -53,10 +53,15 @@ class WordPressInstaller {
         }
     }
 
-    public static function deleteWebsite(string $siteName): void {
-        $dbBase = 'ms_' . str_replace('-', '_', $siteName);
-        exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$dbBase`") . " 2>/dev/null");
-        exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS 'msu_$dbBase'@'localhost'") . " 2>/dev/null");
+    public static function deleteWebsite(string $siteName, string $dbName = '', string $dbUser = ''): void {
+        if ($dbName && $dbUser) {
+            exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$dbName`") . " 2>/dev/null");
+            exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS '$dbUser'@'localhost'") . " 2>/dev/null");
+        } else {
+            $dbBase = 'ms_' . str_replace('-', '_', $siteName);
+            exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$dbBase`") . " 2>/dev/null");
+            exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS 'msu_$dbBase'@'localhost'") . " 2>/dev/null");
+        }
         $siteDir = SITES_DIR . '/' . $siteName;
         if (is_dir($siteDir)) {
             exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
@@ -234,23 +239,37 @@ class WordPressInstaller {
         }
 
         $config = file_get_contents($sample);
-        $config = str_replace(
-            ["'database_name_here'', 'fakepass'", "'database_name_here'", "'username_here'", "'password_here'"],
-            ["'{$this->dbName}'", "'{$this->dbName}'", "'{$this->dbUser}'", "'{$this->dbPass}'"],
-            $config
-        );
-        $config = str_replace(
-            "'wp_'",
-            "'{$this->tablePrefix}'",
-            $config
-        );
 
+        // Database settings
+        $config = str_replace(
+            ["'database_name_here'", "'username_here'", "'password_here'"],
+            ["'{$this->dbName}'", "'{$this->dbUser}'", "'{$this->dbPass}'"],
+            $config
+        );
         $config = preg_replace(
             "/define\s*\(\s*'DB_HOST'.*\);/",
             "define('DB_HOST', 'localhost');",
             $config
         );
+        $config = preg_replace(
+            "/define\s*\(\s*'DB_CHARSET'.*\);/",
+            "define('DB_CHARSET', 'utf8mb4');",
+            $config
+        );
+        $config = preg_replace(
+            "/define\s*\(\s*'DB_COLLATE'.*\);/",
+            "define('DB_COLLATE', '');",
+            $config
+        );
 
+        // Table prefix
+        $config = preg_replace(
+            "/\\\$table_prefix\s*=\s*'[^']*';/",
+            "\$table_prefix = '{$this->tablePrefix}';",
+            $config
+        );
+
+        // Authentication keys and salts
         foreach (['AUTH_KEY','SECURE_AUTH_KEY','LOGGED_IN_KEY','NONCE_KEY','AUTH_SALT','SECURE_AUTH_SALT','LOGGED_IN_SALT','NONCE_SALT'] as $key) {
             $val = bin2hex(random_bytes(16));
             $config = preg_replace(
@@ -258,6 +277,20 @@ class WordPressInstaller {
                 "define('{$key}', '{$val}');",
                 $config
             );
+        }
+
+        // Add debug and filesystem settings before the final "That's all" comment
+        $stopMarker = "/* That's all, stop editing!";
+        $debugBlock = "\n" . 'define(\'WP_DEBUG\', false);'
+                    . "\n" . 'define(\'WP_DEBUG_LOG\', false);'
+                    . "\n" . 'define(\'WP_DEBUG_DISPLAY\', false);'
+                    . "\n" . 'define(\'FS_METHOD\', \'direct\');'
+                    . "\n\n";
+        $pos = strpos($config, $stopMarker);
+        if ($pos !== false) {
+            $config = substr_replace($config, $debugBlock, $pos, 0);
+        } else {
+            $config .= $debugBlock;
         }
 
         if (file_put_contents($this->publicHtml . '/wp-config.php', $config) === false) {
