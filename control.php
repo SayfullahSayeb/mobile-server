@@ -220,22 +220,35 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
 
     setProgress($siteName, 'Setting up database...', 50);
     $db_name = 'wp_' . str_replace('-', '_', $siteName);
-    exec("mariadb -e 'SELECT 1' 2>/dev/null", $mdbchk, $mdbrc);
-    if ($mdbrc !== 0) {
-        panelLog("[WordPress] $siteName: MariaDB unreachable (mariadb -e 'SELECT 1' failed)");
-        setProgress($siteName, 'Failed: MariaDB is not running. Start MariaDB first.', 0, 'error');
-        return [false, 'MariaDB is not running or not accessible. Start MariaDB from the Dashboard and try again.'];
+    // Determine which MariaDB/MySQL CLI is available
+    $mdbCli = '';
+    $mdbRc = 1;
+    $mdbOut = [];
+    foreach (['mariadb', 'mysql'] as $bin) {
+        exec("command -v $bin 2>/dev/null", $null, $hasBin);
+        if ($hasBin === 0) {
+            exec("$bin -e 'SELECT 1' 2>&1", $mdbOut, $mdbRc);
+            if ($mdbRc === 0) { $mdbCli = $bin; break; }
+        }
     }
-    exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
+    if ($mdbRc !== 0) {
+        $detail = !empty($mdbOut) ? implode('; ', $mdbOut) : 'command not found';
+        panelLog("[WordPress] $siteName: MariaDB unreachable ($detail)");
+        exec("pgrep -x mariadbd 2>/dev/null || pgrep -x mysqld 2>/dev/null", $pOut, $pRc);
+        $hint = $pRc === 0 ? 'MariaDB process is running but CLI connection failed (unix socket auth?). Try: mariadb -e "SELECT 1" in Termux.' : 'MariaDB is not running (no mariadbd/mysqld process).';
+        setProgress($siteName, "Failed: MariaDB not accessible ($detail)", 0, 'error');
+        return [false, "Cannot connect to MariaDB. $hint Start it from the Dashboard and try again."];
+    }
+    exec("$mdbCli -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
     if ($rc3 !== 0) {
         $err = !empty($raw) ? implode(' ', $raw) : 'unknown error';
         panelLog("[WordPress] $siteName: CREATE DATABASE failed — $err");
         setProgress($siteName, "Failed: could not create database ($err)", 0, 'error');
         return [false, "Failed to create WordPress database. MariaDB error: $err"];
     }
-    exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
-    exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
-    exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
+    exec("$mdbCli -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
+    exec("$mdbCli -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
+    exec("$mdbCli -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
 
     setProgress($siteName, 'Configuring wp-config.php...', 75);
     $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
@@ -663,14 +676,23 @@ if ($logged_in) {
                             if (is_dir($wp_temp)) {
                                 exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($site_path . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
                             }
-                            exec("mariadb -e 'SELECT 1' 2>/dev/null", $mdbchk, $mdbrc);
-                            if ($mdbrc !== 0) {
+                            // Check MariaDB connectivity
+                            $mdbCli = '';
+                            $mdbRc = 1;
+                            foreach (['mariadb', 'mysql'] as $bin) {
+                                exec("command -v $bin 2>/dev/null", $null, $hasBin);
+                                if ($hasBin === 0) {
+                                    exec("$bin -e 'SELECT 1' 2>&1", $mdbOut, $mdbRc);
+                                    if ($mdbRc === 0) { $mdbCli = $bin; break; }
+                                }
+                            }
+                            if ($mdbRc !== 0) {
                                 $flash = ['error', 'MariaDB is not running or not accessible. Start MariaDB from the Dashboard and try again.'];
                             } else {
                                 $db_name = 'wp_' . str_replace('-', '_', $site_name);
-                                exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
-                                exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
-                                exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
+                                exec("$mdbCli -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
+                                exec("$mdbCli -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
+                                exec("$mdbCli -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
                                 $wp_config = @file_get_contents($site_path . '/wp-config-sample.php');
                                 if ($wp_config) {
                                     @exec("curl -sL https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null");
