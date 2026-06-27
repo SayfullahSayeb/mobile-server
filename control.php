@@ -211,12 +211,18 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
 
     setProgress($siteName, 'Setting up database...', 50);
     $db_name = 'wp_' . str_replace('-', '_', $siteName);
-    exec("pgrep -x mariadbd >/dev/null 2>&1 || pgrep mariadbd >/dev/null 2>&1 || pidof mariadbd >/dev/null 2>&1", $mdbchk, $mdbrc);
+    // Test MariaDB connectivity directly instead of relying on pgrep/pidof
+    exec("mariadb -e 'SELECT 1' 2>/dev/null", $mdbchk, $mdbrc);
     if ($mdbrc !== 0) {
         setProgress($siteName, 'Failed: MariaDB is not running. Start MariaDB first.', 0, 'error');
-        return [false, 'MariaDB is not running. Start MariaDB from the Dashboard and try again.'];
+        return [false, 'MariaDB is not running or not accessible. Start MariaDB from the Dashboard and try again.'];
     }
     exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
+    if ($rc3 !== 0) {
+        $err = !empty($raw) ? implode(' ', $raw) : 'unknown error';
+        setProgress($siteName, "Failed: could not create database ($err)", 0, 'error');
+        return [false, "Failed to create WordPress database. MariaDB error: $err"];
+    }
     exec("mariadb -e " . escapeshellarg("CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4);
     exec("mariadb -e " . escapeshellarg("ALTER USER '$db_user'@'localhost' IDENTIFIED BY '$db_pass'") . " 2>&1", $raw, $rc4a);
     exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rc5);
@@ -445,10 +451,12 @@ if ($logged_in) {
                             file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                             rewriteNginxMainConfig();
                             $db_name = str_replace('-', '_', $name);
-                            exec("pgrep -x mariadbd >/dev/null 2>&1 || pgrep mariadbd >/dev/null 2>&1 || pidof mariadbd >/dev/null 2>&1", $mdbchk, $mdbrc);
+                            exec("mariadb -e 'SELECT 1' 2>/dev/null", $mdbchk, $mdbrc);
                             if ($mdbrc === 0) {
                                 exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
-                                exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rcDb2);
+                                if ($rcDb === 0) {
+                                    exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rcDb2);
+                                }
                             }
                             $wpResult = [true, ''];
                             if ($type === 'wordpress') {
@@ -651,9 +659,9 @@ if ($logged_in) {
                             if (is_dir($wp_temp)) {
                                 exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($site_path . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
                             }
-                            exec("pgrep -x mariadbd >/dev/null 2>&1 || pgrep mariadbd >/dev/null 2>&1 || pidof mariadbd >/dev/null 2>&1", $mdbchk, $mdbrc);
+                            exec("mariadb -e 'SELECT 1' 2>/dev/null", $mdbchk, $mdbrc);
                             if ($mdbrc !== 0) {
-                                $flash = ['error', 'MariaDB is not running. Start MariaDB from the Dashboard and try again.'];
+                                $flash = ['error', 'MariaDB is not running or not accessible. Start MariaDB from the Dashboard and try again.'];
                             } else {
                                 $db_name = 'wp_' . str_replace('-', '_', $site_name);
                                 exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);

@@ -36,6 +36,22 @@ class CloudflareTunnelProvider implements TunnelProvider {
             return ['success' => true, 'message' => 'Already installed'];
         }
 
+        $binDir = dirname($this->binary());
+        $this->ensureDir(dirname($this->logFile));
+        if (!is_dir($binDir)) {
+            return ['success' => false, 'message' => 'Binary directory not found: ' . $binDir];
+        }
+
+        // Try Termux package first (properly patched for Android)
+        exec("command -v pkg 2>/dev/null", $pkgCheck, $pkgRc);
+        if ($pkgRc === 0) {
+            exec("pkg install -y cloudflared 2>&1", $pkgOut, $pkgRc);
+            if ($pkgRc === 0 && $this->isInstalled()) {
+                return ['success' => true, 'message' => 'Cloudflare Tunnel installed via Termux package'];
+            }
+        }
+
+        // Fall back to direct download from GitHub
         exec('uname -m 2>/dev/null', $arch, $rc);
         $archMap = [
             'aarch64' => 'arm64',
@@ -51,15 +67,8 @@ class CloudflareTunnelProvider implements TunnelProvider {
 
         $url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-{$cfArch}";
         $bin = $this->binary();
-        $binDir = dirname($bin);
 
-        $this->ensureDir(dirname($this->logFile));
-
-        if (!is_dir($binDir)) {
-            return ['success' => false, 'message' => 'Binary directory not found: ' . $binDir];
-        }
-
-        exec("curl -sL " . escapeshellarg($url) . " -o " . escapeshellarg($bin) . " 2>&1", $out, $rc);
+        exec("curl -sL --connect-timeout 30 --max-time 120 " . escapeshellarg($url) . " -o " . escapeshellarg($bin) . " 2>&1", $out, $rc);
         if ($rc !== 0) {
             return ['success' => false, 'message' => 'Download failed: ' . implode("\n", $out)];
         }
@@ -67,6 +76,13 @@ class CloudflareTunnelProvider implements TunnelProvider {
         exec("chmod +x " . escapeshellarg($bin) . " 2>&1", $out, $rc);
         if ($rc !== 0) {
             return ['success' => false, 'message' => 'chmod failed: ' . implode("\n", $out)];
+        }
+
+        // Quick smoke test — verify the binary doesn't crash immediately
+        exec(escapeshellarg($bin) . " version 2>&1", $verOut, $verRc);
+        if ($verRc !== 0 || stripos(implode(' ', $verOut), 'SIGSYS') !== false) {
+            @unlink($bin);
+            return ['success' => false, 'message' => 'The downloaded cloudflared binary is not compatible with this Android version. Try running "pkg install cloudflared" directly in Termux.'];
         }
 
         return ['success' => true, 'message' => 'Cloudflare Tunnel installed successfully'];
@@ -134,16 +150,23 @@ class CloudflareTunnelProvider implements TunnelProvider {
             if (!$this->isProcessRunning($pid)) {
                 // Process exited — check output for error
                 $output = is_file($outputFile) ? file_get_contents($outputFile) : '';
-                if ($output && stripos($output, 'error') !== false) {
-                    $errorMsg = trim(substr($output, 0, 500));
-                    $errorMsg = preg_replace('/https?:\/\/[^\s]+/i', '', $errorMsg);
-                    return ['success' => false, 'url' => '', 'message' => 'Login failed: ' . $errorMsg];
+                if ($output) {
+                    // Detect known cloudflared crashes on Termux/Android
+                    if (stripos($output, 'SIGSYS') !== false || stripos($output, 'bad system call') !== false) {
+                        return ['success' => false, 'url' => '', 'message' => 'Cloudflare Tunnel is incompatible with this Android version. Try installing an older cloudflared release or use "pkg upgrade" in Termux.'];
+                    }
+                    if (stripos($output, 'error') !== false || stripos($output, 'failed') !== false) {
+                        $errorMsg = trim(substr($output, 0, 500));
+                        $errorMsg = preg_replace('/https?:\/\/[^\s]+/i', '', $errorMsg);
+                        $errorMsg = preg_replace('/\s+/', ' ', $errorMsg);
+                        return ['success' => false, 'url' => '', 'message' => 'Login failed: ' . $errorMsg];
+                    }
                 }
                 return ['success' => false, 'url' => '', 'message' => 'Login process exited unexpectedly. Try again.'];
             }
         }
 
-        return ['success' => true, 'url' => $url, 'message' => $url ? 'Open the URL in a browser to authenticate.' : 'Login started. Check status in a few seconds.'];
+        return ['success' => true, 'url' => $url, 'message' => $url ? 'Open the URL in a browser to authenticate.' : 'Login started. Click "Check Authentication Status" to refresh.'];
 
     }
 
