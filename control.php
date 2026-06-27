@@ -137,15 +137,22 @@ function getWpZip(): string {
     $tmpPath = $cacheDir . '/latest.zip.tmp';
     $metaFile = $cacheDir . '/.meta';
     $ttl = 86400 * 7; // 7 days
+    $minSize = 1024 * 1024; // 1MB minimum
 
     @mkdir($cacheDir, 0755, true);
+
+    // Discard cached zip if it's too small (corrupted/empty)
+    if (is_file($zipPath) && filesize($zipPath) < $minSize) {
+        @unlink($zipPath);
+        @unlink($metaFile);
+    }
 
     // Check if cached zip is still fresh
     $meta = [];
     if (is_file($metaFile)) {
         $meta = @json_decode(@file_get_contents($metaFile), true);
     }
-    $fresh = is_file($zipPath) && is_array($meta) && isset($meta['time']) && (time() - (int)$meta['time']) < $ttl;
+    $fresh = is_file($zipPath) && filesize($zipPath) >= $minSize && is_array($meta) && isset($meta['time']) && (time() - (int)$meta['time']) < $ttl;
 
     if ($fresh) {
         return $zipPath;
@@ -158,23 +165,24 @@ function getWpZip(): string {
         return is_file($zipPath) ? $zipPath : '';
     }
 
-    // Download fresh copy to temp file first
-    @unlink($tmpPath);
-    exec("curl -sL --connect-timeout 30 --max-time 120 https://wordpress.org/latest.zip -o " . escapeshellarg($tmpPath) . " 2>&1", $raw, $rc);
-
-    if ($rc === 0 && is_file($tmpPath)) {
-        // Download succeeded — replace old zip
-        @unlink($zipPath);
-        rename($tmpPath, $zipPath);
-        file_put_contents($metaFile, json_encode(['time' => time()]));
-        return $zipPath;
+    // Download fresh copy to temp file first (with one retry)
+    for ($attempt = 0; $attempt < 2; $attempt++) {
+        @unlink($tmpPath);
+        exec("curl -sL --connect-timeout 30 --max-time 120 https://wordpress.org/latest.zip -o " . escapeshellarg($tmpPath) . " 2>&1", $raw, $rc);
+        if ($rc === 0 && is_file($tmpPath) && filesize($tmpPath) >= $minSize) {
+            // Download succeeded — replace old zip
+            @unlink($zipPath);
+            rename($tmpPath, $zipPath);
+            file_put_contents($metaFile, json_encode(['time' => time()]));
+            return $zipPath;
+        }
     }
 
-    // Download failed — clean up partial temp file
+    // All download attempts failed — clean up partial temp file
     @unlink($tmpPath);
 
     // Fall back to previous valid zip if it exists
-    if (is_file($zipPath)) {
+    if (is_file($zipPath) && filesize($zipPath) >= $minSize) {
         return $zipPath;
     }
 
@@ -194,32 +202,34 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
 
     setProgress($siteName, 'Downloading WordPress...', 10);
     $zip = getWpZip();
-    if (!$zip) { setProgress($siteName, 'Failed: could not download WordPress — check internet connection', 0, 'error'); return [false, 'Failed to download WordPress — check internet connection']; }
-    if (!is_file($zip)) { setProgress($siteName, 'Failed: WordPress zip not found after download', 0, 'error'); return [false, 'WordPress zip not found after download']; }
+    if (!$zip) { panelLog("[WordPress] $siteName: download failed — no internet or unreachable"); setProgress($siteName, 'Failed: could not download WordPress — check internet connection', 0, 'error'); return [false, 'Failed to download WordPress — check internet connection']; }
+    if (!is_file($zip)) { panelLog("[WordPress] $siteName: zip file missing after download"); setProgress($siteName, 'Failed: WordPress zip not found after download', 0, 'error'); return [false, 'WordPress zip not found after download']; }
 
     setProgress($siteName, 'Extracting WordPress...', 30);
     exec("unzip -qo " . escapeshellarg($zip) . " -d " . escapeshellarg(dirname($sitePath)) . " 2>&1", $raw, $rc2);
-    if ($rc2 !== 0) { setProgress($siteName, 'Failed: could not extract WordPress (is unzip installed?)', 0, 'error'); return [false, 'Failed to extract WordPress — ensure "unzip" is installed']; }
+    if ($rc2 !== 0) { panelLog("[WordPress] $siteName: unzip failed — " . implode(' ', $raw)); setProgress($siteName, 'Failed: could not extract WordPress (is unzip installed?)', 0, 'error'); return [false, 'Failed to extract WordPress — ensure "unzip" is installed']; }
     $wp_temp = dirname($sitePath) . '/wordpress';
     if (is_dir($wp_temp)) {
         exec("cp -r " . escapeshellarg($wp_temp . '/.') . " " . escapeshellarg($sitePath . '/') . " 2>/dev/null; rm -rf " . escapeshellarg($wp_temp));
     }
     if (!is_file($sitePath . '/wp-includes/version.php')) {
+        panelLog("[WordPress] $siteName: WordPress core files not found after extraction");
         setProgress($siteName, 'Failed: WordPress files missing after extraction', 0, 'error');
         return [false, 'WordPress files missing after extraction'];
     }
 
     setProgress($siteName, 'Setting up database...', 50);
     $db_name = 'wp_' . str_replace('-', '_', $siteName);
-    // Test MariaDB connectivity directly instead of relying on pgrep/pidof
     exec("mariadb -e 'SELECT 1' 2>/dev/null", $mdbchk, $mdbrc);
     if ($mdbrc !== 0) {
+        panelLog("[WordPress] $siteName: MariaDB unreachable (mariadb -e 'SELECT 1' failed)");
         setProgress($siteName, 'Failed: MariaDB is not running. Start MariaDB first.', 0, 'error');
         return [false, 'MariaDB is not running or not accessible. Start MariaDB from the Dashboard and try again.'];
     }
     exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rc3);
     if ($rc3 !== 0) {
         $err = !empty($raw) ? implode(' ', $raw) : 'unknown error';
+        panelLog("[WordPress] $siteName: CREATE DATABASE failed — $err");
         setProgress($siteName, "Failed: could not create database ($err)", 0, 'error');
         return [false, "Failed to create WordPress database. MariaDB error: $err"];
     }
@@ -229,7 +239,7 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
 
     setProgress($siteName, 'Configuring wp-config.php...', 75);
     $wp_config = @file_get_contents($sitePath . '/wp-config-sample.php');
-    if (!$wp_config) { setProgress($siteName, 'Failed: WordPress files missing after extraction', 0, 'error'); return [false, 'WordPress files missing after extraction']; }
+    if (!$wp_config) { panelLog("[WordPress] $siteName: wp-config-sample.php not found"); setProgress($siteName, 'Failed: WordPress files missing after extraction', 0, 'error'); return [false, 'WordPress files missing after extraction']; }
     $wp_config = str_replace(
         ["'database_name_here'", "'username_here'", "'password_here'"],
         ["'$db_name'", "'$db_user'", "'$db_pass'"],
@@ -240,6 +250,7 @@ function installWordPress(string $sitePath, string $siteName, string $wpUser, st
         $wp_config = preg_replace("/define\('$key',\s*'[^']*'\);/", "define('$key', '$val');", $wp_config);
     }
     if (file_put_contents($sitePath . '/wp-config.php', $wp_config) === false) {
+        panelLog("[WordPress] $siteName: could not write wp-config.php to $sitePath");
         setProgress($siteName, 'Failed: could not write wp-config.php', 0, 'error');
         return [false, 'Failed to write wp-config.php'];
     }
@@ -450,14 +461,6 @@ if ($logged_in) {
                             if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
                             file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                             rewriteNginxMainConfig();
-                            $db_name = str_replace('-', '_', $name);
-                            exec("mariadb -e 'SELECT 1' 2>/dev/null", $mdbchk, $mdbrc);
-                            if ($mdbrc === 0) {
-                                exec("mariadb -e " . escapeshellarg("CREATE DATABASE IF NOT EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
-                                if ($rcDb === 0) {
-                                    exec("mariadb -e " . escapeshellarg("GRANT ALL PRIVILEGES ON `$db_name`.* TO '$db_user'@'localhost'; FLUSH PRIVILEGES") . " 2>&1", $raw, $rcDb2);
-                                }
-                            }
                             $wpResult = [true, ''];
                             if ($type === 'wordpress') {
                                 $wpUser = trim($_POST['wp_user'] ?? 'admin');
@@ -513,8 +516,9 @@ if ($logged_in) {
                         if (is_dir($siteDir)) {
                             exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
                         }
-                        $db_name = str_replace('-', '_', $name);
-                        exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$db_name`") . " 2>&1", $raw, $rcDb);
+                        $db_site_name = str_replace('-', '_', $name);
+                        exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$db_site_name`") . " 2>&1", $raw, $rcDb);
+                        exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `wp_$db_site_name`") . " 2>&1", $raw, $rcDb2);
                     }
                     $msg = "Site '$name' deleted" . ($deleteFiles ? '' : ' (config only, files kept)');
                     $remaining = glob(NGINX_SITES_DIR . '/*.conf');
