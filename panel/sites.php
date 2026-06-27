@@ -18,7 +18,12 @@ if ($dirs) {
                 'path' => $publicHtml,
                 'enabled' => $config[$name]['enabled'] ?? true,
                 'type' => $config[$name]['type'] ?? 'static',
-                'created' => $config[$name]['created'] ?? ''
+                'created' => $config[$name]['created'] ?? '',
+                'db_name' => $config[$name]['db_name'] ?? '',
+                'db_user' => $config[$name]['db_user'] ?? '',
+                'db_pass' => $config[$name]['db_pass'] ?? '',
+                'table_prefix' => $config[$name]['table_prefix'] ?? '',
+                'status' => $config[$name]['status'] ?? '',
             ];
         }
     }
@@ -33,7 +38,12 @@ foreach ($config as $name => $site) {
             'path' => $site['path'] ?? '',
             'enabled' => $site['enabled'] ?? true,
             'type' => $site['type'] ?? 'static',
-            'created' => $site['created'] ?? ''
+            'created' => $site['created'] ?? '',
+            'db_name' => $site['db_name'] ?? '',
+            'db_user' => $site['db_user'] ?? '',
+            'db_pass' => $site['db_pass'] ?? '',
+            'table_prefix' => $site['table_prefix'] ?? '',
+            'status' => $site['status'] ?? '',
         ];
     }
 }
@@ -74,7 +84,12 @@ ksort($allSites);
           <?php endif; ?>
         </td>
         <td><span class="ty <?= $site['type'] ?>"><?= $site['type'] === 'wordpress' ? 'WordPress' : 'Static' ?></span></td>
-        <td><span class="be <?= $site['enabled'] ? 'on' : 'off' ?>"><?= $site['enabled'] ? 'Enabled' : 'Disabled' ?></span></td>
+        <td>
+          <span class="be <?= $site['enabled'] ? 'on' : 'off' ?>"><?= $site['enabled'] ? 'Enabled' : 'Disabled' ?></span>
+          <?php if ($site['type'] === 'wordpress'): ?>
+          <span class="ts" style="display:block;color:var(--text2);font-size:11px;margin-top:2px"><?= $site['status'] === 'pending_setup' ? 'Pending Setup' : ($site['status'] ?: '') ?></span>
+          <?php endif; ?>
+        </td>
         <td class="td-actions">
           <form method="post" style="display:inline">
             <?= csrf() ?>
@@ -83,6 +98,9 @@ ksort($allSites);
             <button type="submit" class="btn btn-s <?= $site['enabled'] ? 'btn-w' : 'btn-o' ?>" title="<?= $site['enabled'] ? 'Disable' : 'Enable' ?>"><i class="fas <?= $site['enabled'] ? 'fa-pause' : 'fa-play' ?>"></i></button>
           </form>
           <button class="btn btn-s btn-w" onclick="editSite('<?= htmlspecialchars($name, ENT_QUOTES) ?>', '<?= htmlspecialchars($site['domain'], ENT_QUOTES) ?>', '<?= $site['type'] ?>')" title="Edit"><i class="fas fa-edit"></i></button>
+          <?php if ($site['type'] === 'wordpress' && $site['db_name']): ?>
+          <button type="button" class="btn btn-s btn-p" title="DB Info" onclick="showDbInfo('<?= htmlspecialchars($name, ENT_QUOTES) ?>')"><i class="fas fa-database"></i></button>
+          <?php endif; ?>
           <button type="button" class="btn btn-s btn-d" title="Delete" onclick="showDeleteModal('<?= htmlspecialchars($name, ENT_QUOTES) ?>')"><i class="fas fa-trash-alt"></i></button>
         </td>
       </tr>
@@ -188,6 +206,21 @@ ksort($allSites);
   </div>
 </div>
 
+<div id="dbModal" class="modal">
+  <div class="modal-bg" onclick="closeDbModal()"></div>
+  <div class="modal-content" style="max-width:420px">
+    <div class="modal-header">
+      <span class="modal-title">Database Details</span>
+      <span class="modal-close" onclick="closeDbModal()">&times;</span>
+    </div>
+    <div id="dbInfoContent" style="font-size:13px;line-height:1.6">
+    </div>
+    <div class="modal-footer" style="margin-top:14px">
+      <button type="button" class="btn btn-d" onclick="closeDbModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="deleteModal" class="modal">
   <div class="modal-bg" onclick="closeDeleteModal()"></div>
   <div class="modal-content" style="max-width:400px">
@@ -213,6 +246,24 @@ ksort($allSites);
 </div>
 
 <script>
+var siteCreds = <?= json_encode(array_map(function($s) {
+    return ['db_name' => $s['db_name'], 'db_user' => $s['db_user'], 'db_pass' => $s['db_pass'], 'table_prefix' => $s['table_prefix']];
+}, $allSites)) ?>;
+
+function showDbInfo(name) {
+  var c = siteCreds[name];
+  if (!c) return;
+  document.getElementById('dbInfoContent').innerHTML =
+    '<div class="st2 mb1">Database: <span style="color:var(--text1);font-weight:400">' + c.db_name + '</span></div>' +
+    '<div class="st2 mb1">User: <span style="color:var(--text1);font-weight:400">' + c.db_user + '</span></div>' +
+    '<div class="st2 mb1">Password: <span style="color:var(--text1);font-weight:400;font-family:monospace">' + c.db_pass + '</span></div>' +
+    '<div class="st2 mb1">Prefix: <span style="color:var(--text1);font-weight:400;font-family:monospace">' + c.table_prefix + '</span></div>' +
+    '<div class="st2 mb1" style="margin-top:8px;color:var(--text3);font-size:11px">Host: localhost</div>';
+  document.getElementById('dbModal').classList.add('show');
+}
+function closeDbModal() {
+  document.getElementById('dbModal').classList.remove('show');
+}
 function toggleWpFields() {
   var type = document.querySelector('input[name="site_type"]:checked').value;
   var wpFields = document.getElementById('wpFields');
