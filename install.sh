@@ -119,6 +119,8 @@ download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/ma
     ~/server/sites/default/public_html/lib/CloudflareTunnelProvider.php
 download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/TunnelManager.php" \
     ~/server/sites/default/public_html/lib/TunnelManager.php
+download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/WordPressInstaller.php" \
+    ~/server/sites/default/public_html/lib/WordPressInstaller.php
 
 echo "[*] Downloading panel files..."
 
