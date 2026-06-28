@@ -35,9 +35,6 @@ function csrf(): string {
     <a href="?tab=sites" class="nav-i <?= $tab==='sites'?'act':'' ?>">
       <span class="ni"><i class="fas fa-globe"></i></span><span class="nl">Sites</span>
     </a>
-    <a href="?tab=cloudflare" class="nav-i <?= $tab==='cloudflare'?'act':'' ?>">
-      <span class="ni"><i class="fas fa-cloud"></i></span><span class="nl">Cloudflare</span>
-    </a>
     <a href="?tab=ssh" class="nav-i <?= $tab==='ssh'?'act':'' ?>">
       <span class="ni"><i class="fas fa-terminal"></i></span><span class="nl">SSH</span>
     </a>

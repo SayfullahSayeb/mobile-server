@@ -48,6 +48,7 @@ foreach ($config as $name => $site) {
     }
 }
 ksort($allSites);
+$cfTunnels = cfTunnelsLoad();
 ?>
 <div class="sec">
   <div class="df jb ac fw g2 mb2">
@@ -68,6 +69,7 @@ ksort($allSites);
         <th>Name</th>
         <th>URL</th>
         <th>Type</th>
+        <th>Tunnel</th>
         <th>Status</th>
         <th>Actions</th>
       </tr>
@@ -84,6 +86,26 @@ ksort($allSites);
           <?php endif; ?>
         </td>
         <td><span class="ty <?= $site['type'] ?>"><?= $site['type'] === 'wordpress' ? 'WordPress' : 'Static' ?></span></td>
+        <td class="td-tunnel" id="cf-<?= htmlspecialchars($name) ?>">
+          <?php if (isset($cfTunnels[$name])): $t = $cfTunnels[$name]; ?>
+            <span class="cf-status" data-site="<?= htmlspecialchars($name) ?>">
+              <span class="tm ts" style="color:var(--text3)"><i class="fas fa-spinner fa-pulse"></i> Starting...</span>
+            </span>
+            <form method="post" style="display:inline">
+              <?= csrf() ?>
+              <input type="hidden" name="action" value="cf_tunnel_stop">
+              <input type="hidden" name="site" value="<?= htmlspecialchars($name) ?>">
+              <button type="submit" class="btn btn-s btn-d" title="Stop Tunnel"><i class="fas fa-times"></i></button>
+            </form>
+          <?php else: ?>
+            <form method="post" style="display:inline">
+              <?= csrf() ?>
+              <input type="hidden" name="action" value="cf_tunnel_start">
+              <input type="hidden" name="site" value="<?= htmlspecialchars($name) ?>">
+              <button type="submit" class="btn btn-s btn-p" title="Start Cloudflare Tunnel"><i class="fas fa-cloud"></i></button>
+            </form>
+          <?php endif; ?>
+        </td>
         <td>
           <span class="be <?= $site['enabled'] ? 'on' : 'off' ?>"><?= $site['enabled'] ? 'Enabled' : 'Disabled' ?></span>
           <?php if ($site['type'] === 'wordpress'): ?>
@@ -375,4 +397,33 @@ function submitSiteForm(form) {
 
   return false;
 }
+
+// ── Cloudflare tunnel URL polling ──────────────────────────────────
+(function() {
+  var cells = document.querySelectorAll('.cf-status');
+  cells.forEach(function(cell) {
+    var site = cell.getAttribute('data-site');
+    var td = document.getElementById('cf-' + site);
+    if (!td) return;
+    pollCfTunnel(site, cell, td);
+  });
+  function pollCfTunnel(site, el, td) {
+    fetch('?cf_tunnel_status=' + encodeURIComponent(site))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.url) {
+          el.innerHTML = '<a href="' + d.url + '" target="_blank" style="color:var(--blue);font-size:12px;word-break:break-all;display:inline-block;max-width:180px">' + d.url + '</a>';
+        } else if (d.running) {
+          el.innerHTML = '<span class="tm ts" style="color:var(--text3)"><i class="fas fa-spinner fa-pulse"></i> Starting...</span>';
+          setTimeout(function() { pollCfTunnel(site, el, td); }, 3000);
+        } else {
+          var stopForm = td.querySelector('form');
+          if (stopForm) stopForm.parentNode.innerHTML = '';
+          el.innerHTML = '<span class="tm ts" style="color:var(--red)"><i class="fas fa-exclamation-triangle"></i> Failed</span>';
+        }
+      }).catch(function() {
+        setTimeout(function() { pollCfTunnel(site, el, td); }, 5000);
+      });
+  }
+})();
 </script>

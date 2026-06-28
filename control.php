@@ -75,13 +75,7 @@ function panelLog(string $message): void {
     @file_put_contents(LOG_DIR . '/panel.log', $line, FILE_APPEND | LOCK_EX);
 }
 
-require_once __DIR__ . '/lib/TunnelProvider.php';
-require_once __DIR__ . '/lib/CloudflareTunnelProvider.php';
-require_once __DIR__ . '/lib/TunnelManager.php';
 require_once __DIR__ . '/lib/WordPressInstaller.php';
-
-$tunnelProvider = new CloudflareTunnelProvider();
-$tunnelManager = new TunnelManager($tunnelProvider, CONFIG_DIR);
 
 if (isset($_GET['tab']) && $_GET['tab'] === 'update' && isset($_GET['action']) && $_GET['action'] === 'stream') {
     include __DIR__ . '/panel/update_stream.php';
@@ -90,6 +84,23 @@ if (isset($_GET['tab']) && $_GET['tab'] === 'update' && isset($_GET['action']) &
 
 // Progress tracking for long operations
 define('PROGRESS_DIR', HOME_DIR . '/server/tmp');
+define('CF_TUNNELS_FILE', CONFIG_DIR . '/cloudflared_tunnels.json');
+
+function cfTunnelsLoad(): array {
+    if (!is_file(CF_TUNNELS_FILE)) return [];
+    $data = json_decode(file_get_contents(CF_TUNNELS_FILE), true);
+    return is_array($data) ? $data : [];
+}
+
+function cfTunnelsSave(array $tunnels): void {
+    $dir = dirname(CF_TUNNELS_FILE);
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    file_put_contents(CF_TUNNELS_FILE, json_encode($tunnels, JSON_PRETTY_PRINT));
+}
+
+function cfTunnelLogFile(string $site): string {
+    return LOG_DIR . '/cf_tunnel_' . $site . '.log';
+}
 
 function setProgress(string $siteName, string $step, int $pct, string $status = 'working'): void {
     @mkdir(PROGRESS_DIR, 0755, true);
@@ -115,6 +126,44 @@ if (isset($_GET['wp_progress'])) {
     } else {
         echo json_encode(['step' => 'unknown', 'pct' => 0, 'status' => 'unknown']);
     }
+    exit;
+}
+
+// Cloudflared tunnel status poll endpoint
+if (isset($_GET['cf_tunnel_status'])) {
+    header('Content-Type: application/json');
+    $site = preg_replace('/[^a-z0-9_-]/', '', $_GET['cf_tunnel_status']);
+    if (!$site) {
+        echo json_encode(['running' => false, 'url' => '']);
+        exit;
+    }
+    $tunnels = cfTunnelsLoad();
+    if (!isset($tunnels[$site])) {
+        echo json_encode(['running' => false, 'url' => '']);
+        exit;
+    }
+    $t = $tunnels[$site];
+    $running = false;
+    if (!empty($t['pid'])) {
+        exec("kill -0 " . (int)$t['pid'] . " 2>/dev/null", $null, $rc);
+        $running = $rc === 0;
+    }
+    $url = $t['url'] ?? '';
+    if (!$url && $running) {
+        $logFile = cfTunnelLogFile($site);
+        if (is_file($logFile)) {
+            $content = file_get_contents($logFile);
+            if (preg_match('/https:\/\/[a-z0-9-]+\.trycloudflare\.com/', $content, $m)) {
+                $url = $m[0];
+                $tunnels[$site]['url'] = $url;
+                cfTunnelsSave($tunnels);
+            }
+        }
+    }
+    if (!$running) {
+        @unlink(cfTunnelLogFile($site));
+    }
+    echo json_encode(['running' => $running, 'url' => $url]);
     exit;
 }
 
@@ -500,80 +549,6 @@ if ($logged_in) {
             $_SESSION['nginx_diag'] = $ports;
             $flash = ['success', 'Port check complete. See diagnostics below.'];
             panelLog('Checked listening ports');
-        } elseif ($action === 'tunnel_install') {
-            $r = $tunnelManager->install();
-            $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-            panelLog('Tunnel install: ' . ($r['success'] ? 'done' : 'failed'));
-        } elseif ($action === 'tunnel_login') {
-            $r = $tunnelManager->login();
-            if (!empty($r['url'])) {
-                $_SESSION['tunnel_login_url'] = $r['url'];
-            }
-            $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-            panelLog('Tunnel login: ' . ($r['success'] ? 'done' : 'failed'));
-        } elseif ($action === 'tunnel_logout') {
-            $ok = $tunnelManager->logout();
-            $flash = [$ok ? 'success' : 'error', $ok ? 'Logged out of Cloudflare' : 'Logout failed'];
-            panelLog('Tunnel logout');
-        } elseif ($action === 'tunnel_create') {
-            $name = trim($_POST['tunnel_name'] ?? '');
-            if (!$name || !preg_match('/^[a-zA-Z0-9_-]+$/', $name)) {
-                $flash = ['error', 'Invalid tunnel name (letters, numbers, hyphens, underscores)'];
-            } else {
-                $r = $tunnelManager->createTunnel($name);
-                $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-                panelLog('Tunnel create: ' . ($r['success'] ? 'done' : 'failed'));
-            }
-        } elseif ($action === 'tunnel_delete') {
-            $id = $_POST['tunnel_id'] ?? '';
-            if ($id) {
-                $r = $tunnelManager->deleteTunnel($id);
-                $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-                panelLog('Tunnel deleted');
-            }
-        } elseif ($action === 'tunnel_start') {
-            $r = $tunnelManager->start();
-            $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-            panelLog('Tunnel start: ' . ($r['success'] ? 'done' : 'failed'));
-        } elseif ($action === 'tunnel_stop') {
-            $r = $tunnelManager->stop();
-            $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-            panelLog('Tunnel stopped');
-        } elseif ($action === 'tunnel_restart') {
-            $r = $tunnelManager->restart();
-            $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-            panelLog('Tunnel restarted');
-        } elseif ($action === 'tunnel_add_hostname') {
-            $hostname = trim($_POST['hostname'] ?? '');
-            $target = trim($_POST['target'] ?? '');
-            if (!$hostname || !$target) {
-                $flash = ['error', 'Please provide both hostname and target'];
-            } elseif (!preg_match('/^[a-zA-Z0-9.-]+(\.[a-zA-Z]{2,})+$/', $hostname)) {
-                $flash = ['error', 'Invalid hostname (e.g., example.com)'];
-            } else {
-                $r = $tunnelManager->addHostname($hostname, $target);
-                $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-            }
-        } elseif ($action === 'tunnel_remove_hostname') {
-            $hostname = $_POST['hostname'] ?? '';
-            if ($hostname) {
-                $r = $tunnelManager->removeHostname($hostname);
-                $flash = [$r['success'] ? 'success' : 'error', $r['message']];
-            }
-        } elseif ($action === 'tunnel_clear_logs') {
-            $ok = $tunnelManager->clearLogs();
-            $flash = [$ok ? 'success' : 'error', $ok ? 'Logs cleared' : 'Failed to clear logs'];
-        } elseif ($action === 'tunnel_set_autostart') {
-            $enabled = !empty($_POST['auto_start']);
-            $tunnelManager->setAutoStart($enabled);
-            $flash = ['success', 'Auto-start ' . ($enabled ? 'enabled' : 'disabled')];
-        } elseif ($action === 'tunnel_select') {
-            $id = $_POST['tunnel_id'] ?? '';
-            $name = $_POST['tunnel_name'] ?? '';
-            if ($id) {
-                $tunnelManager->setActiveTunnel($id, $name);
-                $flash = ['success', 'Active tunnel set to: ' . htmlspecialchars($name)];
-            }
         } elseif ($action === 'update_system') {
             $target_dir = __DIR__;
             $repo_url = 'https://github.com/SayfullahSayeb/mobile-server.git';
@@ -677,6 +652,46 @@ if ($logged_in) {
                 $flash = [$ok ? 'success' : 'error', $msg];
                 panelLog('HTTPS setup: ' . ($ok ? 'done' : 'failed'));
             }
+        } elseif ($action === 'cf_tunnel_start') {
+            $site = preg_replace('/[^a-z0-9_-]/', '', $_POST['site'] ?? '');
+            if (!$site) {
+                $flash = ['error', 'Invalid site name'];
+            } else {
+                $tunnels = cfTunnelsLoad();
+                if (!empty($tunnels[$site]['pid'])) {
+                    exec("kill " . (int)$tunnels[$site]['pid'] . " 2>/dev/null");
+                }
+                $port = 8080;
+                $config = getSitesConfig();
+                if (isset($config[$site]['port']) && $config[$site]['port'] > 0) {
+                    $port = (int)$config[$site]['port'];
+                }
+                $logFile = cfTunnelLogFile($site);
+                @unlink($logFile);
+                exec("cloudflared tunnel --url http://localhost:$port > " . escapeshellarg($logFile) . " 2>&1 & echo $!", $pout, $prc);
+                $pid = (int)($pout[0] ?? 0);
+                if ($pid > 0) {
+                    $tunnels[$site] = ['pid' => $pid, 'port' => $port, 'url' => '', 'started' => time()];
+                    cfTunnelsSave($tunnels);
+                    $flash = ['success', 'Cloudflare tunnel starting for ' . $site];
+                    panelLog("CF tunnel started for $site (PID $pid)");
+                } else {
+                    $flash = ['error', 'Failed to start cloudflared tunnel'];
+                }
+            }
+        } elseif ($action === 'cf_tunnel_stop') {
+            $site = preg_replace('/[^a-z0-9_-]/', '', $_POST['site'] ?? '');
+            if ($site) {
+                $tunnels = cfTunnelsLoad();
+                if (!empty($tunnels[$site]['pid'])) {
+                    exec("kill " . (int)$tunnels[$site]['pid'] . " 2>/dev/null");
+                }
+                unset($tunnels[$site]);
+                cfTunnelsSave($tunnels);
+                @unlink(cfTunnelLogFile($site));
+                $flash = ['success', 'Cloudflare tunnel stopped for ' . $site];
+                panelLog("CF tunnel stopped for $site");
+            }
         } elseif ($action === 'disable_https') {
             $sslConf = NGINX_SITES_DIR . '/_ssl.conf';
             if (is_file($sslConf)) {
@@ -699,12 +714,12 @@ if ($logged_in) {
 
     $https_enabled = is_file(SSL_DIR . '/cert.pem') && is_file(SSL_DIR . '/key.pem');
     $status = [];
-    $serviceMap = ['nginx' => 'Nginx', 'php-fpm' => 'PHP-FPM', 'mariadbd' => 'MariaDB'];
-    @exec("for p in nginx php-fpm mariadbd; do pgrep -x \"\$p\" >/dev/null 2>&1 && echo \"\$p:1\" || echo \"\$p:0\"; done", $pout, $prc);
+    $serviceMap = ['nginx' => 'Nginx', 'php-fpm' => 'PHP-FPM', 'mariadbd' => 'MariaDB', 'mysqld' => 'MariaDB'];
+    @exec("for p in nginx php-fpm mariadbd mysqld; do pgrep \"\$p\" >/dev/null 2>&1 && echo \"\$p:1\"; done", $pout, $prc);
     foreach ($pout as $line) {
         $parts = explode(':', $line, 2);
         if (count($parts) === 2 && isset($serviceMap[$parts[0]])) {
-            $status[$serviceMap[$parts[0]]] = ($parts[1] === '1');
+            $status[$serviceMap[$parts[0]]] = true;
         }
     }
     foreach ($services as $name => $s) {
@@ -718,21 +733,6 @@ if ($logged_in) {
     $uptime     = trim(@shell_exec('uptime -p 2>/dev/null') ?: 'N/A');
     $php_ver    = phpversion();
     $server_time = date('Y-m-d H:i:s');
-
-    $tunnelManager->checkAutoStart();
-
-    $tunnelStatus = $tunnelManager->status();
-    $tunnelInstalled = $tunnelManager->isInstalled();
-    $tunnelAuthenticated = $tunnelManager->isAuthenticated();
-    $tunnelLoginStatus = $tunnelManager->loginStatus();
-    $tunnelLoginUrl = $_SESSION['tunnel_login_url'] ?? '';
-    if ($tunnelLoginStatus === 'completed') {
-        $_SESSION['tunnel_login_url'] = '';
-    }
-    $tunnelHostnames = $tunnelManager->getHostnames();
-    $tunnelAutoStart = $tunnelManager->isAutoStartEnabled();
-    // healthStatus is expensive — only compute on pages that display it
-    $tunnelHealth = in_array($tab, ['dashboard', 'cloudflare']) ? $tunnelManager->healthStatus($tunnelStatus) : ['healthy' => true, 'issues' => [], 'status' => 'unknown'];
 
     $csrf_token = $_SESSION['csrf_token'];
 }

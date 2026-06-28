@@ -13,7 +13,7 @@
     </ul>
   </div>
   <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.15);border-radius:var(--rs);padding:12px;margin-bottom:14px">
-    <div style="color:var(--orange);font-weight:500"><i class="fas fa-exclamation-triangle"></i> Your sites, databases, tunnel config, and other data will not be affected.</div>
+    <div style="color:var(--orange);font-weight:500"><i class="fas fa-exclamation-triangle"></i> Your sites, databases, and other data will not be affected.</div>
   </div>
   <button onclick="startUpdate()" class="btn btn-p btn-l" id="updateBtn"><i class="fas fa-download"></i> Update from GitHub</button>
 </div>

@@ -27,7 +27,7 @@ PMA;
 }
 
 function status($process) {
-    exec("pgrep -x " . escapeshellarg($process), $out, $code);
+    exec("pgrep " . escapeshellarg($process) . " 2>/dev/null || pidof " . escapeshellarg($process) . " 2>/dev/null", $out, $code);
     return $code === 0;
 }
 

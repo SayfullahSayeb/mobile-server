@@ -19,8 +19,10 @@ pkg install -y \
     curl \
     wget \
     unzip \
-    tar 2>/dev/null || {
+    tar \
+    cloudflared 2>/dev/null || {
     echo "[!] Package installation failed. Retrying with full output..."
+    pkg update -y
     pkg install -y \
         openssh \
         iproute2 \
@@ -33,7 +35,8 @@ pkg install -y \
         curl \
         wget \
         unzip \
-        tar
+        tar \
+        cloudflared
 }
 
 mkdir -p \
@@ -113,19 +116,13 @@ fi
 echo "[*] Downloading library files..."
 
 mkdir -p ~/server/sites/default/public_html/lib
-download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/TunnelProvider.php" \
-    ~/server/sites/default/public_html/lib/TunnelProvider.php
-download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/CloudflareTunnelProvider.php" \
-    ~/server/sites/default/public_html/lib/CloudflareTunnelProvider.php
-download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/TunnelManager.php" \
-    ~/server/sites/default/public_html/lib/TunnelManager.php
 download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/WordPressInstaller.php" \
     ~/server/sites/default/public_html/lib/WordPressInstaller.php
 
 echo "[*] Downloading panel files..."
 
 mkdir -p ~/server/sites/default/public_html/panel
-for panel_file in login.php header.php footer.php dashboard.php files.php sites.php wordpress.php cloudflare.php update.php control.css; do
+for panel_file in login.php header.php footer.php dashboard.php files.php sites.php wordpress.php update.php control.css; do
     download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/panel/$panel_file" \
         ~/server/sites/default/public_html/panel/$panel_file
 done
