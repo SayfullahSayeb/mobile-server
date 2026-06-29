@@ -1,5 +1,5 @@
 <?php
-date_default_timezone_set('Asia/Dhaka');
+date_default_timezone_set(@date_default_timezone_get() ?: 'UTC');
 
 // Create phpMyAdmin symlink and config if installed
 $pmaSource = '/data/data/com.termux/files/usr/share/phpmyadmin';
