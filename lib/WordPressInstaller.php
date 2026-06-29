@@ -75,6 +75,17 @@ class WordPressInstaller {
         }
     }
 
+    public static function deleteDatabase(string $dbName, string $dbUser = ''): void {
+        if ($dbName) {
+            exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$dbName`") . " 2>/dev/null");
+        }
+        if ($dbUser) {
+            exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS '$dbUser'@'localhost'") . " 2>/dev/null");
+            exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS '$dbUser'@'127.0.0.1'") . " 2>/dev/null");
+            exec("mariadb -e " . escapeshellarg("FLUSH PRIVILEGES") . " 2>/dev/null");
+        }
+    }
+
     // ── Credential generation ──────────────────────────────────────
 
     private function generateCredentials(): void {
@@ -307,14 +318,28 @@ class WordPressInstaller {
     }
 
     private function createDatabaseUser(): void {
-        $r = $this->mariadb("CREATE USER IF NOT EXISTS '{$this->dbUser}'@'localhost' IDENTIFIED BY '{$this->dbPass}'");
+        // Drop user first to avoid conflicts with existing credentials
+        $this->mariadb("DROP USER IF EXISTS '{$this->dbUser}'@'localhost'");
+
+        $r = $this->mariadb("CREATE USER '{$this->dbUser}'@'localhost' IDENTIFIED BY '{$this->dbPass}'");
         if ($r['rc'] !== 0) {
             throw new \RuntimeException("Failed to create database user: " . $r['out']);
         }
 
-        $r = $this->mariadb("GRANT ALL PRIVILEGES ON `{$this->dbName}`.* TO '{$this->dbUser}'@'localhost'; FLUSH PRIVILEGES");
+        // Grant ALL privileges on the site's database
+        $r = $this->mariadb("GRANT ALL PRIVILEGES ON `{$this->dbName}`.* TO '{$this->dbUser}'@'localhost' WITH GRANT OPTION");
         if ($r['rc'] !== 0) {
             throw new \RuntimeException("Failed to grant privileges: " . $r['out']);
+        }
+
+        // Also allow connections from 127.0.0.1 (TCP) not just socket
+        $this->mariadb("DROP USER IF EXISTS '{$this->dbUser}'@'127.0.0.1'");
+        $this->mariadb("CREATE USER '{$this->dbUser}'@'127.0.0.1' IDENTIFIED BY '{$this->dbPass}'");
+        $this->mariadb("GRANT ALL PRIVILEGES ON `{$this->dbName}`.* TO '{$this->dbUser}'@'127.0.0.1' WITH GRANT OPTION");
+
+        $r = $this->mariadb("FLUSH PRIVILEGES");
+        if ($r['rc'] !== 0) {
+            throw new \RuntimeException("Failed to flush privileges: " . $r['out']);
         }
         $this->userCreated = true;
     }
@@ -339,8 +364,8 @@ class WordPressInstaller {
         // Build replacement map
         $replacements = [
             '{{DB_NAME}}'         => $this->dbName,
-            '{{DB_USER}}'         => $this->serverConfig['DB_ROOT_USER'] ?? 'root',
-            '{{DB_PASSWORD}}'     => $this->serverConfig['DB_ROOT_PASS'] ?? '',
+            '{{DB_USER}}'         => $this->dbUser,
+            '{{DB_PASSWORD}}'     => $this->dbPass,
             '{{DB_HOST}}'         => $this->serverConfig['DB_HOST'] ?? 'localhost',
             '{{DB_CHARSET}}'      => 'utf8mb4',
             '{{DB_COLLATE}}'      => '',

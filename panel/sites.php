@@ -56,6 +56,11 @@ $cfTunnels = cfTunnelsLoad();
     <div class="st" style="margin-bottom:0">Manage Sites</div>
     <div class="df ac g2 fw">
       <span class="ts tm"><?= count($allSites) ?> site<?= count($allSites) !== 1 ? 's' : '' ?></span>
+      <form method="post" style="display:inline">
+        <?= csrf() ?>
+        <input type="hidden" name="action" value="auto_disable_broken">
+        <button type="submit" class="btn btn-s btn-w" title="Auto-disable broken sites" onclick="return confirm('Check all enabled sites and disable any that are not responding?')"><i class="fas fa-wrench"></i> Fix Broken</button>
+      </form>
       <button class="btn btn-p btn-l" onclick="document.getElementById('siteModal').classList.add('show')"><i class="fas fa-plus"></i> Add New</button>
     </div>
   </div>
@@ -69,6 +74,7 @@ $cfTunnels = cfTunnelsLoad();
         <th>Type</th>
         <th>Tunnel</th>
         <th>Status</th>
+        <th>Health</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -109,6 +115,10 @@ $cfTunnels = cfTunnelsLoad();
           <?php if ($site['type'] === 'wordpress'): ?>
           <span class="ts" style="display:block;color:var(--text2);font-size:11px;margin-top:2px"><?= $site['status'] === 'pending_setup' ? 'Pending Setup' : ($site['status'] ?: '') ?></span>
           <?php endif; ?>
+        </td>
+        <td id="health-<?= htmlspecialchars($name) ?>">
+          <span class="health-dot" data-site="<?= htmlspecialchars($name) ?>" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text3);margin-right:4px;vertical-align:middle"></span>
+          <span class="health-label" data-site="<?= htmlspecialchars($name) ?>" style="font-size:12px;color:var(--text3)">Checking...</span>
         </td>
         <td class="td-actions">
           <form method="post" style="display:inline">
@@ -208,10 +218,7 @@ $cfTunnels = cfTunnelsLoad();
       <input type="hidden" name="action" value="delete_site">
       <input type="hidden" name="site_name" id="deleteSiteName" value="">
       <p style="margin:0 0 12px;font-size:14px;color:var(--text2)" id="deleteSiteLabel"></p>
-      <label class="rl" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:8px 10px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.08);border-radius:var(--rs);transition:all .15s">
-        <input type="checkbox" name="delete_files" value="1" checked id="deleteFilesCheck" style="accent-color:var(--blue);width:15px;height:15px;cursor:pointer">
-        <span>Also delete site files (irreversible)</span>
-      </label>
+      <p style="margin:0 0 12px;font-size:12px;color:var(--red)"><i class="fas fa-exclamation-triangle"></i> Database, database user, and all site files will be permanently deleted.</p>
       <div class="modal-footer" style="margin-top:14px">
         <button type="button" class="btn btn-d" onclick="closeDeleteModal()">Cancel</button>
         <button type="submit" class="btn btn-d" style="background:var(--red);color:#fff">Delete</button>
@@ -252,7 +259,6 @@ function closeModal() {
 function showDeleteModal(name) {
   document.getElementById('deleteSiteName').value = name;
   document.getElementById('deleteSiteLabel').textContent = 'Delete "' + name + '"?';
-  document.getElementById('deleteFilesCheck').checked = true;
   document.getElementById('deleteModal').classList.add('show');
 }
 function closeDeleteModal() {
@@ -414,5 +420,70 @@ function submitDeleteForm(form) {
         setTimeout(function() { pollCfTunnel(site, el, td); }, 5000);
       });
   }
+})();
+
+// ── Site health check polling ──────────────────────────────────────
+(function() {
+  var healthColors = {
+    running: '#22c55e',
+    disabled: '#64748b',
+    down: '#ef4444',
+    error: '#f59e0b',
+    unknown: '#64748b'
+  };
+  var healthLabels = {
+    running: 'Running',
+    disabled: 'Disabled',
+    down: 'Down',
+    error: 'Error',
+    unknown: 'Unknown'
+  };
+  var healthIcons = {
+    running: 'fa-check-circle',
+    disabled: 'fa-minus-circle',
+    down: 'fa-times-circle',
+    error: 'fa-exclamation-triangle',
+    unknown: 'fa-question-circle'
+  };
+
+  function updateHealthUI(site, data) {
+    var dot = document.querySelector('.health-dot[data-site="' + site + '"]');
+    var label = document.querySelector('.health-label[data-site="' + site + '"]');
+    if (!dot || !label) return;
+
+    var status = data.status || 'unknown';
+    var color = healthColors[status] || healthColors.unknown;
+    var text = healthLabels[status] || healthLabels.unknown;
+    var icon = healthIcons[status] || healthIcons.unknown;
+
+    dot.style.background = color;
+    if (status === 'running') {
+      dot.style.boxShadow = '0 0 4px ' + color;
+    } else {
+      dot.style.boxShadow = 'none';
+    }
+
+    var reason = data.reason ? ' (' + data.reason + ')' : '';
+    label.innerHTML = '<i class="fas ' + icon + '" style="color:' + color + '"></i> ' + text + reason;
+    label.style.color = color;
+  }
+
+  function pollHealth() {
+    fetch('?site_health=all')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        for (var site in data) {
+          if (data.hasOwnProperty(site)) {
+            updateHealthUI(site, data[site]);
+          }
+        }
+      })
+      .catch(function() {})
+      .then(function() {
+        setTimeout(pollHealth, 5000);
+      });
+  }
+
+  pollHealth();
 })();
 </script>

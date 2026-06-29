@@ -190,6 +190,27 @@ if (isset($_GET['cf_tunnel_status'])) {
     exit;
 }
 
+// Site health check endpoint
+if (isset($_GET['site_health'])) {
+    header('Content-Type: application/json');
+    if ($_GET['site_health'] === 'all') {
+        echo json_encode(checkAllSitesHealth());
+    } else {
+        $site = preg_replace('/[^a-z0-9_-]/', '', $_GET['site_health']);
+        if (!$site) {
+            echo json_encode(['status' => 'unknown']);
+            exit;
+        }
+        $config = getSitesConfig();
+        if (!isset($config[$site])) {
+            echo json_encode(['status' => 'unknown']);
+            exit;
+        }
+        echo json_encode(checkSiteHealth($site, $config[$site]));
+    }
+    exit;
+}
+
 function getSitesConfig(): array {
     if (!is_file(SITES_JSON)) return [];
     $data = json_decode(file_get_contents(SITES_JSON), true);
@@ -234,6 +255,56 @@ function getNextPort(): int {
         if (!in_array($p, $used, true)) return $p;
     }
     return 0;
+}
+
+function isPortListening(int $port): bool {
+    if ($port < 1 || $port > 65535) return false;
+    exec("ss -tlnp 2>/dev/null | grep ':$port ' || netstat -tlnp 2>/dev/null | grep ':$port '", $out, $rc);
+    return $rc === 0;
+}
+
+function checkSiteHealth(string $name, array $site): array {
+    $port = (int)($site['port'] ?? 0);
+    $enabled = !empty($site['enabled']);
+    $confFile = NGINX_SITES_DIR . '/' . $name . '.conf';
+    $confExists = is_file($confFile);
+    $listening = $port > 0 ? isPortListening($port) : false;
+    $pathExists = !empty($site['path']) && is_dir($site['path']);
+
+    $status = 'unknown';
+    $reason = '';
+
+    if (!$enabled) {
+        $status = 'disabled';
+    } elseif (!$pathExists) {
+        $status = 'error';
+        $reason = 'Site directory missing';
+    } elseif (!$confExists) {
+        $status = 'error';
+        $reason = 'Nginx config missing';
+    } elseif (!$listening) {
+        $status = 'down';
+        $reason = 'Port not listening';
+    } else {
+        $status = 'running';
+    }
+
+    return [
+        'status'    => $status,
+        'listening' => $listening,
+        'conf'      => $confExists,
+        'path'      => $pathExists,
+        'reason'    => $reason,
+    ];
+}
+
+function checkAllSitesHealth(): array {
+    $config = getSitesConfig();
+    $results = [];
+    foreach ($config as $name => $site) {
+        $results[$name] = checkSiteHealth($name, $site);
+    }
+    return $results;
 }
 
 function generateNginxBlock(string $domain, int $port, string $path): string {
@@ -489,7 +560,6 @@ if ($logged_in) {
             }
         } elseif ($action === 'delete_site') {
             $name = trim($_POST['site_name'] ?? '');
-            $deleteFiles = !empty($_POST['delete_files']);
             if ($name && preg_match('/^[a-z0-9_-]+$/', $name)) {
                 $config = getSitesConfig();
                 if (!isset($config[$name])) {
@@ -500,14 +570,21 @@ if ($logged_in) {
                     unset($config[$name]);
                     saveSitesConfig($config);
                     @unlink(NGINX_SITES_DIR . '/' . $name . '.conf');
-                    if ($deleteFiles) {
-                        if ($dbName && $dbUser) {
-                            WordPressInstaller::deleteWebsite($name, $dbName, $dbUser);
-                        } else {
-                            WordPressInstaller::deleteWebsite($name);
-                        }
+
+                    // Always delete database and user
+                    if ($dbName && $dbUser) {
+                        WordPressInstaller::deleteDatabase($dbName, $dbUser);
+                    } else {
+                        $dbBase = str_replace('-', '_', $name);
+                        WordPressInstaller::deleteDatabase($dbBase, $dbBase);
                     }
-                    $msg = "Site '$name' deleted" . ($deleteFiles ? '' : ' (config only, files kept)');
+
+                    // Always delete site files
+                    $siteDir = SITES_DIR . '/' . $name;
+                    if (is_dir($siteDir)) {
+                        exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
+                    }
+
                     $remaining = glob(NGINX_SITES_DIR . '/*.conf');
                     if (empty($remaining)) {
                         @mkdir(NGINX_SITES_DIR, 0755, true);
@@ -520,11 +597,11 @@ if ($logged_in) {
                     if (!$reloadOk) {
                         $reloadOk = reloadNginx();
                     }
-                    $flash = ['success', $msg];
+                    $flash = ['success', "Site '$name' deleted"];
                     if (!$reloadOk) {
                         panelLog("Deleted site '$name' — nginx reload warning: run 'nginx -t' to check config");
                     }
-                    panelLog("Deleted site '$name'" . ($deleteFiles ? '' : ' (kept files)'));
+                    panelLog("Deleted site '$name'");
                 }
             } else {
                 $flash = ['error', "Invalid site name"];
@@ -554,6 +631,27 @@ if ($logged_in) {
                 }
             } else {
                 $flash = ['error', "Site '$name' not found in config"];
+            }
+        } elseif ($action === 'auto_disable_broken') {
+            $config = getSitesConfig();
+            $disabled = [];
+            foreach ($config as $name => $site) {
+                if (empty($site['enabled'])) continue;
+                $health = checkSiteHealth($name, $site);
+                if ($health['status'] === 'down' || $health['status'] === 'error') {
+                    $config[$name]['enabled'] = false;
+                    $confFile = NGINX_SITES_DIR . '/' . $name . '.conf';
+                    @unlink($confFile);
+                    $disabled[] = $name;
+                    panelLog("Auto-disabled broken site '$name': " . ($health['reason'] ?: $health['status']));
+                }
+            }
+            if (!empty($disabled)) {
+                saveSitesConfig($config);
+                reloadNginx();
+                $flash = ['success', 'Auto-disabled ' . count($disabled) . ' broken site(s): ' . implode(', ', $disabled)];
+            } else {
+                $flash = ['success', 'All enabled sites are healthy'];
             }
         } elseif ($action === 'edit_site') {
             $name = trim($_POST['site_name_orig'] ?? '');
