@@ -14,8 +14,22 @@ function copyUrl(text) {
     });
 }
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('show');
-    document.querySelector('.sb-overlay').classList.toggle('show');
+    var sb = document.getElementById('sidebar');
+    var ov = document.querySelector('.sb-overlay');
+    sb.classList.toggle('show');
+    if (sb.classList.contains('show')) {
+        ov.classList.add('show');
+    } else {
+        ov.classList.remove('show');
+    }
+}
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('show');
+    document.querySelector('.sb-overlay').classList.remove('show');
+}
+var navLinks = document.querySelectorAll('.nav-i');
+for (var i = 0; i < navLinks.length; i++) {
+    navLinks[i].addEventListener('click', closeSidebar);
 }
 </script>
 <footer class="tc tm ts" style="padding:12px 0 4px">Mobile Server — Nginx &bull; PHP-FPM &bull; MariaDB</footer>

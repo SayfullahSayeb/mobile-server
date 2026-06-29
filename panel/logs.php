@@ -14,13 +14,19 @@
       <button class="btn btn-s btn-p" id="refreshBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
     </div>
   </div>
-  <div class="tb-wrap" style="max-height:calc(100vh - 220px);overflow-y:auto" id="log-scroll">
+  <div class="tb-wrap" style="max-height:calc(var(--vh, 100vh) - 220px);overflow-y:auto" id="log-scroll">
     <pre id="log-content" style="margin:0;font-family:'SF Mono','Fira Code',Consolas,monospace;font-size:12px;line-height:1.6;color:var(--text2);white-space:pre-wrap;word-break:break-all"></pre>
   </div>
 </div>
 
 <script>
 (function() {
+  function setVh() {
+    document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
+  }
+  setVh();
+  window.addEventListener('resize', setVh);
+
   var allLogs = [];
   var currentFilter = 'all';
   var levelColors = { error: '#ff7b72', warn: '#d29922', info: '#8b949e' };
@@ -46,7 +52,10 @@
   function refreshLogs() {
     fetch('?raw_logs=json')
       .then(function(r) { return r.json(); })
-      .then(function(data) { allLogs = data || []; renderLogs(); });
+      .then(function(data) { allLogs = data || []; renderLogs(); })
+      .catch(function() {
+        document.getElementById('log-content').innerHTML = '<span style="color:#ff7b72">Failed to load logs. Check connection and try again.</span>';
+      });
   }
 
   document.getElementById('log-filter').addEventListener('change', function() { currentFilter = this.value; renderLogs(); });
@@ -57,6 +66,8 @@
       allLogs = [];
       renderLogs();
       setTimeout(refreshLogs, 500);
+    }).catch(function() {
+      alert('Failed to clear logs');
     });
   });
 

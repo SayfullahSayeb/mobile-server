@@ -1,4 +1,4 @@
-<div class="sec" style="padding:0;overflow:hidden;height:calc(100vh - 140px);display:flex;flex-direction:column">
+<div class="sec" style="padding:0;overflow:hidden;height:calc(var(--vh, 100vh) - 140px);min-height:300px;display:flex;flex-direction:column">
   <div id="term-container" style="flex:1;min-height:0;padding:8px;background:#0d1117;position:relative">
     <div id="term-status" style="display:flex;align-items:center;justify-content:center;height:100%;color:#8b949e;font-size:15px;gap:10px;flex-direction:column">
       <i class="fas fa-terminal"></i> Terminal ready
@@ -16,6 +16,12 @@
 <script>
 (function() {
   'use strict';
+  function setVh() {
+    document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
+  }
+  setVh();
+  window.addEventListener('resize', setVh);
+
   var CSRF_TOKEN = '<?= htmlspecialchars($csrf_token ?? '') ?>';
   var term = null;
   var fitAddon = null;
@@ -219,9 +225,14 @@
     });
   }
 
+  var loadTimer = setTimeout(function() {
+    if (!initCalled) showError('Terminal loading timed out. Check your connection.');
+  }, 15000);
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadXterm);
+    document.addEventListener('DOMContentLoaded', function() { clearTimeout(loadTimer); loadXterm(); });
   } else {
+    clearTimeout(loadTimer);
     loadXterm();
   }
 })();
