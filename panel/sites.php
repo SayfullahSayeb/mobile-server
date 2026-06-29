@@ -188,24 +188,16 @@ $cfTunnels = cfTunnelsLoad();
       <div class="st2" style="margin:0 0 8px">Site Type</div>
       <div class="df ac g3 mb1" id="siteTypeGroup">
         <label class="rl" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.08);border-radius:var(--rs);transition:all .15s">
-          <input type="radio" name="site_type" value="static" checked onchange="toggleWpFields()" style="accent-color:var(--blue);width:15px;height:15px;cursor:pointer">
+          <input type="radio" name="site_type" value="static" checked style="accent-color:var(--blue);width:15px;height:15px;cursor:pointer">
           <span>Static Site</span>
         </label>
         <label class="rl" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.08);border-radius:var(--rs);transition:all .15s">
-          <input type="radio" name="site_type" value="wordpress" onchange="toggleWpFields()" style="accent-color:var(--blue);width:15px;height:15px;cursor:pointer">
+          <input type="radio" name="site_type" value="wordpress" style="accent-color:var(--blue);width:15px;height:15px;cursor:pointer">
           <span>WordPress Site</span>
         </label>
       </div>
       <input type="text" name="site_name" id="siteName" class="inp" placeholder="Site name (e.g. myapp)" required pattern="[a-z0-9_-]+" title="Letters, numbers, hyphens, underscores only">
       <input type="hidden" name="site_domain" id="siteDomain" value="">
-      <div id="wpFields" class="wp-fields" style="display:none">
-        <div class="st2" style="margin:6px 0 10px">WordPress Configuration</div>
-        <div class="fr2">
-          <input type="text" name="wp_user" id="wpUser" class="inp" placeholder="Admin username" value="admin">
-          <input type="password" name="wp_pass" id="wpPass" class="inp" placeholder="Admin password">
-        </div>
-        <input type="email" name="wp_email" id="wpEmail" class="inp" placeholder="Admin email" value="admin@localhost.local">
-      </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-d" onclick="closeModal()">Cancel</button>
         <button type="submit" class="btn btn-p" id="submitBtn">Create Site</button>
@@ -286,16 +278,9 @@ function showDbInfo(name) {
 function closeDbModal() {
   document.getElementById('dbModal').classList.remove('show');
 }
-function toggleWpFields() {
-  var type = document.querySelector('input[name="site_type"]:checked').value;
-  var wpFields = document.getElementById('wpFields');
-  wpFields.style.display = type === 'wordpress' ? 'block' : 'none';
-  document.getElementById('wpPass').required = type === 'wordpress';
-}
 function closeModal() {
   document.getElementById('siteModal').classList.remove('show');
   document.getElementById('siteForm').reset();
-  document.getElementById('wpFields').style.display = 'none';
   document.getElementById('formAction').value = 'create_site';
   document.getElementById('modalTitle').textContent = 'Add New Site';
   document.getElementById('submitBtn').textContent = 'Create Site';
@@ -327,12 +312,6 @@ function editSite(name, domain, type) {
 function submitSiteForm(form) {
   var type = document.querySelector('input[name="site_type"]:checked').value;
   var isWp = type === 'wordpress';
-
-  if (isWp && !document.getElementById('wpPass').value) {
-    alert('Admin password is required for WordPress.');
-    return false;
-  }
-
   var siteName = document.getElementById('siteName').value;
   var data = new FormData(form);
   var modal = document.getElementById('progressModal');

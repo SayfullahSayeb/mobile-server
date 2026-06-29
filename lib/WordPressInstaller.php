@@ -71,8 +71,9 @@ class WordPressInstaller {
     // ── Credential generation ──────────────────────────────────────
 
     private function generateCredentials(): void {
-        $this->dbName = 'ms_' . bin2hex(random_bytes(4));
-        $this->dbUser = 'msu_' . bin2hex(random_bytes(4));
+        $dbBase = str_replace('-', '_', $this->siteName);
+        $this->dbName = 'ms_' . $dbBase;
+        $this->dbUser = 'msu_' . $dbBase;
         $this->dbPass = $this->randomPassword(32);
         $this->tablePrefix = 'wp_' . bin2hex(random_bytes(2)) . '_';
     }
@@ -124,8 +125,8 @@ class WordPressInstaller {
             if (!@mkdir($this->publicHtml, 0755, true)) {
                 throw new \RuntimeException("Failed to create directory: {$this->publicHtml}");
             }
+            $this->dirCreated = true;
         }
-        $this->dirCreated = true;
     }
 
     // ── WordPress download / extract ───────────────────────────────
@@ -172,7 +173,8 @@ class WordPressInstaller {
 
         for ($attempt = 0; $attempt < 2; $attempt++) {
             @unlink($tmpPath);
-            exec("curl -sL --connect-timeout 30 --max-time 120 https://wordpress.org/latest.zip -o "
+            $flags = $attempt === 0 ? '-sL' : '-sLk';
+            exec("curl $flags --connect-timeout 30 --max-time 120 https://wordpress.org/latest.zip -o "
                 . escapeshellarg($tmpPath) . ' 2>&1', $raw, $rc);
             if ($rc === 0 && is_file($tmpPath) && filesize($tmpPath) >= $minSize) {
                 @unlink($zipPath);

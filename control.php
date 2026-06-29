@@ -363,7 +363,6 @@ if ($logged_in) {
                         $flash = ['error', 'No available port (all 8081-8999 are in use)'];
                     } else {
                         if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
-                        @mkdir($publicHtml, 0755, true);
                         $block = generateNginxBlock($domain, $port, $publicHtml);
                         if ($block === '') {
                             $flash = ['error', "Failed to generate nginx config for '$name' — check directory permissions"];

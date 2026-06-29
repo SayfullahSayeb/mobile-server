@@ -9,9 +9,8 @@ if (is_dir($pmaSource)) {
         @symlink($pmaSource, $pmaLink);
     }
     $pmaConfig = $pmaSource . '/config.inc.php';
-    if (!file_exists($pmaConfig)) {
-        $blowfish = bin2hex(random_bytes(16));
-        $config = <<<PMA
+    $blowfish = bin2hex(random_bytes(16));
+    $config = <<<PMA
 <?php
 \$cfg['blowfish_secret'] = '$blowfish';
 \$i = 0;
@@ -22,8 +21,7 @@ if (is_dir($pmaSource)) {
 \$cfg['Servers'][\$i]['compress'] = false;
 \$cfg['Servers'][\$i]['AllowNoPassword'] = true;
 PMA;
-        @file_put_contents($pmaConfig, $config);
-    }
+    @file_put_contents($pmaConfig, $config);
 }
 
 function status($process) {
