@@ -55,12 +55,6 @@ $cfTunnels = cfTunnelsLoad();
   <div class="df jb ac fw g2 mb2">
     <div class="st" style="margin-bottom:0">Manage Sites</div>
     <div class="df ac g2 fw">
-      <span class="ts tm"><?= count($allSites) ?> site<?= count($allSites) !== 1 ? 's' : '' ?></span>
-      <form method="post" style="display:inline">
-        <?= csrf() ?>
-        <input type="hidden" name="action" value="auto_disable_broken">
-        <button type="submit" class="btn btn-s btn-w" title="Auto-disable broken sites" onclick="return confirm('Check all enabled sites and disable any that are not responding?')"><i class="fas fa-wrench"></i> Fix Broken</button>
-      </form>
       <button class="btn btn-p btn-l" onclick="document.getElementById('siteModal').classList.add('show')"><i class="fas fa-plus"></i> Add New</button>
     </div>
   </div>
@@ -74,7 +68,6 @@ $cfTunnels = cfTunnelsLoad();
         <th>Type</th>
         <th>Tunnel</th>
         <th>Status</th>
-        <th>Health</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -112,13 +105,6 @@ $cfTunnels = cfTunnelsLoad();
         </td>
         <td>
           <span class="be <?= $site['enabled'] ? 'on' : 'off' ?>"><?= $site['enabled'] ? 'Enabled' : 'Disabled' ?></span>
-          <?php if ($site['type'] === 'wordpress'): ?>
-          <span class="ts" style="display:block;color:var(--text2);font-size:11px;margin-top:2px"><?= $site['status'] === 'pending_setup' ? 'Pending Setup' : ($site['status'] ?: '') ?></span>
-          <?php endif; ?>
-        </td>
-        <td id="health-<?= htmlspecialchars($name) ?>">
-          <span class="health-dot" data-site="<?= htmlspecialchars($name) ?>" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--text3);margin-right:4px;vertical-align:middle"></span>
-          <span class="health-label" data-site="<?= htmlspecialchars($name) ?>" style="font-size:12px;color:var(--text3)">Checking...</span>
         </td>
         <td class="td-actions">
           <form method="post" style="display:inline">
@@ -128,9 +114,6 @@ $cfTunnels = cfTunnelsLoad();
             <button type="submit" class="btn btn-s <?= $site['enabled'] ? 'btn-w' : 'btn-o' ?>" title="<?= $site['enabled'] ? 'Disable' : 'Enable' ?>"><i class="fas <?= $site['enabled'] ? 'fa-pause' : 'fa-play' ?>"></i></button>
           </form>
           <button class="btn btn-s btn-w" onclick="editSite('<?= htmlspecialchars($name, ENT_QUOTES) ?>', '<?= htmlspecialchars($site['domain'], ENT_QUOTES) ?>', '<?= $site['type'] ?>')" title="Edit"><i class="fas fa-edit"></i></button>
-          <?php if ($site['type'] === 'wordpress' && $site['db_name']): ?>
-          <button type="button" class="btn btn-s btn-p" title="DB Info" onclick="showDbInfo('<?= htmlspecialchars($name, ENT_QUOTES) ?>')"><i class="fas fa-database"></i></button>
-          <?php endif; ?>
           <button type="button" class="btn btn-s btn-d" title="Delete" onclick="showDeleteModal('<?= htmlspecialchars($name, ENT_QUOTES) ?>')"><i class="fas fa-trash-alt"></i></button>
         </td>
       </tr>
@@ -191,21 +174,6 @@ $cfTunnels = cfTunnelsLoad();
   </div>
 </div>
 
-<div id="dbModal" class="modal">
-  <div class="modal-bg" onclick="closeDbModal()"></div>
-  <div class="modal-content" style="max-width:420px">
-    <div class="modal-header">
-      <span class="modal-title">Database Details</span>
-      <span class="modal-close" onclick="closeDbModal()">&times;</span>
-    </div>
-    <div id="dbInfoContent" style="font-size:13px;line-height:1.6">
-    </div>
-    <div class="modal-footer" style="margin-top:14px">
-      <button type="button" class="btn btn-d" onclick="closeDbModal()">Close</button>
-    </div>
-  </div>
-</div>
-
 <div id="deleteModal" class="modal">
   <div class="modal-bg" onclick="closeDeleteModal()"></div>
   <div class="modal-content" style="max-width:400px">
@@ -228,24 +196,6 @@ $cfTunnels = cfTunnelsLoad();
 </div>
 
 <script>
-var siteCreds = <?= json_encode(array_map(function($s) {
-    return ['db_name' => $s['db_name'], 'db_user' => $s['db_user'], 'db_pass' => $s['db_pass'], 'table_prefix' => $s['table_prefix']];
-}, $allSites)) ?>;
-
-function showDbInfo(name) {
-  var c = siteCreds[name];
-  if (!c) return;
-  document.getElementById('dbInfoContent').innerHTML =
-    '<div class="st2 mb1">Database: <span style="color:var(--text1);font-weight:400">' + c.db_name + '</span></div>' +
-    '<div class="st2 mb1">User: <span style="color:var(--text1);font-weight:400">' + c.db_user + '</span></div>' +
-    '<div class="st2 mb1">Password: <span style="color:var(--text1);font-weight:400;font-family:monospace">' + c.db_pass + '</span></div>' +
-    '<div class="st2 mb1">Prefix: <span style="color:var(--text1);font-weight:400;font-family:monospace">' + c.table_prefix + '</span></div>' +
-    '<div class="st2 mb1" style="margin-top:8px;color:var(--text3);font-size:11px">Host: localhost</div>';
-  document.getElementById('dbModal').classList.add('show');
-}
-function closeDbModal() {
-  document.getElementById('dbModal').classList.remove('show');
-}
 function closeModal() {
   document.getElementById('siteModal').classList.remove('show');
   document.getElementById('siteForm').reset();
@@ -277,7 +227,6 @@ function editSite(name, domain, type) {
   document.getElementById('siteDomain').value = domain === '' ? '' : domain;
   var radio = document.querySelector('input[name="site_type"][value="' + (type || 'static') + '"]');
   if (radio) radio.checked = true;
-  toggleWpFields();
   document.getElementById('siteModal').classList.add('show');
 }
 function submitSiteForm(form) {
@@ -422,68 +371,4 @@ function submitDeleteForm(form) {
   }
 })();
 
-// ── Site health check polling ──────────────────────────────────────
-(function() {
-  var healthColors = {
-    running: '#22c55e',
-    disabled: '#64748b',
-    down: '#ef4444',
-    error: '#f59e0b',
-    unknown: '#64748b'
-  };
-  var healthLabels = {
-    running: 'Running',
-    disabled: 'Disabled',
-    down: 'Down',
-    error: 'Error',
-    unknown: 'Unknown'
-  };
-  var healthIcons = {
-    running: 'fa-check-circle',
-    disabled: 'fa-minus-circle',
-    down: 'fa-times-circle',
-    error: 'fa-exclamation-triangle',
-    unknown: 'fa-question-circle'
-  };
-
-  function updateHealthUI(site, data) {
-    var dot = document.querySelector('.health-dot[data-site="' + site + '"]');
-    var label = document.querySelector('.health-label[data-site="' + site + '"]');
-    if (!dot || !label) return;
-
-    var status = data.status || 'unknown';
-    var color = healthColors[status] || healthColors.unknown;
-    var text = healthLabels[status] || healthLabels.unknown;
-    var icon = healthIcons[status] || healthIcons.unknown;
-
-    dot.style.background = color;
-    if (status === 'running') {
-      dot.style.boxShadow = '0 0 4px ' + color;
-    } else {
-      dot.style.boxShadow = 'none';
-    }
-
-    var reason = data.reason ? ' (' + data.reason + ')' : '';
-    label.innerHTML = '<i class="fas ' + icon + '" style="color:' + color + '"></i> ' + text + reason;
-    label.style.color = color;
-  }
-
-  function pollHealth() {
-    fetch('?site_health=all')
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        for (var site in data) {
-          if (data.hasOwnProperty(site)) {
-            updateHealthUI(site, data[site]);
-          }
-        }
-      })
-      .catch(function() {})
-      .then(function() {
-        setTimeout(pollHealth, 5000);
-      });
-  }
-
-  pollHealth();
-})();
 </script>
