@@ -23,7 +23,7 @@ class WordPressInstaller {
         $this->sitePath     = SITES_DIR . '/' . $siteName;
         $this->publicHtml   = $this->sitePath . '/public_html';
         $this->serverConfig = array_merge([
-            'DB_HOST'      => 'localhost',
+            'DB_HOST'      => '127.0.0.1',
             'DB_ROOT_USER' => 'root',
             'DB_ROOT_PASS' => '',
         ], $serverConfig);
@@ -366,7 +366,7 @@ class WordPressInstaller {
             '{{DB_NAME}}'         => $this->dbName,
             '{{DB_USER}}'         => $this->dbUser,
             '{{DB_PASSWORD}}'     => $this->dbPass,
-            '{{DB_HOST}}'         => $this->serverConfig['DB_HOST'] ?? 'localhost',
+            '{{DB_HOST}}'         => $this->serverConfig['DB_HOST'] ?? '127.0.0.1',
             '{{DB_CHARSET}}'      => 'utf8mb4',
             '{{DB_COLLATE}}'      => '',
             '{{TABLE_PREFIX}}'    => $this->tablePrefix,

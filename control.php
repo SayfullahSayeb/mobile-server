@@ -227,7 +227,7 @@ function saveSitesConfig(array $config): void {
 
 function getServerConfig(): array {
     $defaults = [
-        'DB_HOST'     => 'localhost',
+        'DB_HOST'     => '127.0.0.1',
         'DB_ROOT_USER'=> 'root',
         'DB_ROOT_PASS'=> '',
     ];
@@ -259,7 +259,7 @@ function getNextPort(): int {
 
 function isPortListening(int $port): bool {
     if ($port < 1 || $port > 65535) return false;
-    exec("ss -tlnp 2>/dev/null | grep ':$port ' || netstat -tlnp 2>/dev/null | grep ':$port '", $out, $rc);
+    exec("ss -tlnp 2>/dev/null | grep -q ':$port ' || netstat -tlnp 2>/dev/null | grep -q ':$port '", $out, $rc);
     return $rc === 0;
 }
 
@@ -332,7 +332,7 @@ function rewriteNginxMainConfig(): bool {
     $conf = file_get_contents(NGINX_CONF);
     $includeLine = 'include ' . NGINX_SITES_DIR . '/*.conf;';
     if (preg_match('/include\s+' . preg_quote(NGINX_SITES_DIR, '/') . '/', $conf)) return true;
-    $conf = preg_replace('/^http\s*\{/m', "http {\n    $includeLine", $conf, 1, $count);
+    $conf = preg_replace('/^http\s*\{[^\n]*/m', "$0\n    $includeLine", $conf, 1, $count);
     if ($count === 0) return false;
     file_put_contents(NGINX_CONF, $conf);
     return true;

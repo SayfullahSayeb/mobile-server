@@ -214,7 +214,7 @@ echo "[*] Initializing server configuration..."
 if [ ! -f ~/server/configs/server.json ]; then
     cat > ~/server/configs/server.json <<'SRVEOF'
 {
-    "DB_HOST": "localhost",
+    "DB_HOST": "127.0.0.1",
     "DB_ROOT_USER": "root",
     "DB_ROOT_PASS": ""
 }
