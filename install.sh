@@ -119,6 +119,10 @@ mkdir -p ~/server/sites/default/public_html/lib
 download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/WordPressInstaller.php" \
     ~/server/sites/default/public_html/lib/WordPressInstaller.php
 
+mkdir -p ~/server/sites/default/public_html/lib/templates
+download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/lib/templates/wp-config.php" \
+    ~/server/sites/default/public_html/lib/templates/wp-config.php
+
 echo "[*] Downloading panel files..."
 
 mkdir -p ~/server/sites/default/public_html/panel
@@ -203,6 +207,21 @@ if [ ! -d "$PREFIX/var/lib/mysql/mysql" ]; then
     fi
 else
     echo "[*] MariaDB already initialized."
+fi
+
+echo "[*] Initializing server configuration..."
+
+if [ ! -f ~/server/configs/server.json ]; then
+    cat > ~/server/configs/server.json <<'SRVEOF'
+{
+    "DB_HOST": "localhost",
+    "DB_ROOT_USER": "root",
+    "DB_ROOT_PASS": ""
+}
+SRVEOF
+    echo "[*] Server configuration created (~/server/configs/server.json)."
+else
+    echo "[*] Server configuration already exists."
 fi
 
 echo "[*] Setting up SSH password..."

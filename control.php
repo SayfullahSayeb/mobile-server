@@ -61,6 +61,8 @@ define('NGINX_CONF', '/data/data/com.termux/files/usr/etc/nginx/nginx.conf');
 define('NGINX_SITES_DIR', CONFIG_DIR . '/nginx-sites');
 define('SSL_DIR', HOME_DIR . '/server/ssl');
 define('SITES_JSON', CONFIG_DIR . '/sites.json');
+define('SERVER_JSON', CONFIG_DIR . '/server.json');
+define('WP_CONFIG_TEMPLATE', __DIR__ . '/lib/templates/wp-config.php');
 define('PHP_SOCKET', (function () {
     $s = trim(@exec('grep "^listen =" /data/data/com.termux/files/usr/etc/php-fpm.d/www.conf 2>/dev/null | awk "{print \$3}"') ?: '');
     if ($s && strpos($s, 'unix:') !== 0 && strpos($s, ':') === false) {
@@ -200,6 +202,26 @@ function saveSitesConfig(array $config): void {
         @mkdir($dir, 0755, true);
     }
     file_put_contents(SITES_JSON, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+}
+
+function getServerConfig(): array {
+    $defaults = [
+        'DB_HOST'     => 'localhost',
+        'DB_ROOT_USER'=> 'root',
+        'DB_ROOT_PASS'=> '',
+    ];
+    if (!is_file(SERVER_JSON)) return $defaults;
+    $data = json_decode(@file_get_contents(SERVER_JSON), true);
+    if (!is_array($data)) return $defaults;
+    return array_merge($defaults, $data);
+}
+
+function saveServerConfig(array $config): void {
+    $dir = dirname(SERVER_JSON);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    file_put_contents(SERVER_JSON, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 }
 
 function getNextPort(): int {
@@ -421,7 +443,7 @@ if ($logged_in) {
                                     sleep(3);
                                 }
                                 setProgress($name, 'Starting WordPress installation...', 10);
-                                $installer = new WordPressInstaller($name);
+                                $installer = new WordPressInstaller($name, getServerConfig());
                                 $wpResult = $installer->createWebsite($domain, $port);
                             } else {
                                 setProgress($name, 'Creating static site...', 10);

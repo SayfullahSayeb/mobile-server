@@ -11,15 +11,22 @@ class WordPressInstaller {
     private string $dbPass  = '';
     private string $tablePrefix = '';
 
+    private array $serverConfig;
+
     private bool $dirCreated    = false;
     private bool $dbCreated     = false;
     private bool $userCreated   = false;
     private bool $configWritten = false;
 
-    public function __construct(string $siteName) {
-        $this->siteName   = $siteName;
-        $this->sitePath   = SITES_DIR . '/' . $siteName;
-        $this->publicHtml = $this->sitePath . '/public_html';
+    public function __construct(string $siteName, array $serverConfig = []) {
+        $this->siteName     = $siteName;
+        $this->sitePath     = SITES_DIR . '/' . $siteName;
+        $this->publicHtml   = $this->sitePath . '/public_html';
+        $this->serverConfig = array_merge([
+            'DB_HOST'      => 'localhost',
+            'DB_ROOT_USER' => 'root',
+            'DB_ROOT_PASS' => '',
+        ], $serverConfig);
     }
 
     public function createWebsite(string $domain, int $port): array {
@@ -99,6 +106,23 @@ class WordPressInstaller {
     // ── MariaDB connectivity ───────────────────────────────────────
 
     private function findMariaDB(): void {
+        $rootUser = $this->serverConfig['DB_ROOT_USER'] ?? 'root';
+        $rootPass = $this->serverConfig['DB_ROOT_PASS'] ?? '';
+
+        // Try configured root credentials first
+        foreach (['mariadb', 'mysql'] as $bin) {
+            exec("command -v $bin 2>/dev/null", $null, $rc);
+            if ($rc !== 0) continue;
+
+            $passArg = $rootPass !== '' ? ' --password=' . escapeshellarg($rootPass) : '';
+            exec("$bin -u " . escapeshellarg($rootUser) . "$passArg -e 'SELECT 1' 2>&1", $out, $rc2);
+            if ($rc2 === 0) {
+                $this->mdbCli = "$bin -u " . escapeshellarg($rootUser) . $passArg;
+                return;
+            }
+        }
+
+        // Fallback: try passwordless root access (original behavior)
         foreach (['mariadb', 'mysql'] as $bin) {
             exec("command -v $bin 2>/dev/null", $null, $rc);
             if ($rc !== 0) continue;
@@ -298,65 +322,41 @@ class WordPressInstaller {
     // ── wp-config.php ──────────────────────────────────────────────
 
     private function generateWpConfig(): void {
-        $sample = $this->publicHtml . '/wp-config-sample.php';
-        if (!is_file($sample)) {
-            throw new \RuntimeException('wp-config-sample.php not found.');
+        $templatePath = defined('WP_CONFIG_TEMPLATE') ? WP_CONFIG_TEMPLATE : __DIR__ . '/templates/wp-config.php';
+        if (!is_file($templatePath)) {
+            throw new \RuntimeException('wp-config.php template not found at: ' . $templatePath);
         }
 
-        $config = file_get_contents($sample);
+        $template = file_get_contents($templatePath);
 
-        // Database settings
-        $config = str_replace(
-            ["'database_name_here'", "'username_here'", "'password_here'"],
-            ["'{$this->dbName}'", "'{$this->dbUser}'", "'{$this->dbPass}'"],
-            $config
-        );
-        $config = preg_replace(
-            "/define\s*\(\s*'DB_HOST'.*\);/",
-            "define('DB_HOST', 'localhost');",
-            $config
-        );
-        $config = preg_replace(
-            "/define\s*\(\s*'DB_CHARSET'.*\);/",
-            "define('DB_CHARSET', 'utf8mb4');",
-            $config
-        );
-        $config = preg_replace(
-            "/define\s*\(\s*'DB_COLLATE'.*\);/",
-            "define('DB_COLLATE', '');",
-            $config
-        );
-
-        // Table prefix
-        $config = preg_replace(
-            "/\\\$table_prefix\s*=\s*'[^']*';/",
-            "\$table_prefix = '{$this->tablePrefix}';",
-            $config
-        );
-
-        // Authentication keys and salts
-        foreach (['AUTH_KEY','SECURE_AUTH_KEY','LOGGED_IN_KEY','NONCE_KEY','AUTH_SALT','SECURE_AUTH_SALT','LOGGED_IN_SALT','NONCE_SALT'] as $key) {
-            $val = bin2hex(random_bytes(16));
-            $config = preg_replace(
-                "/define\s*\(\s*'{$key}'\s*,\s*'[^']*'\s*\);/",
-                "define('{$key}', '{$val}');",
-                $config
-            );
+        // Generate authentication keys and salts
+        $keys = [];
+        foreach (['AUTH_KEY', 'SECURE_AUTH_KEY', 'LOGGED_IN_KEY', 'NONCE_KEY',
+                   'AUTH_SALT', 'SECURE_AUTH_SALT', 'LOGGED_IN_SALT', 'NONCE_SALT'] as $key) {
+            $keys[$key] = bin2hex(random_bytes(16));
         }
 
-        // Add debug and filesystem settings before the final "That's all" comment
-        $stopMarker = "/* That's all, stop editing!";
-        $debugBlock = "\n" . 'define(\'WP_DEBUG\', false);'
-                    . "\n" . 'define(\'WP_DEBUG_LOG\', false);'
-                    . "\n" . 'define(\'WP_DEBUG_DISPLAY\', false);'
-                    . "\n" . 'define(\'FS_METHOD\', \'direct\');'
-                    . "\n\n";
-        $pos = strpos($config, $stopMarker);
-        if ($pos !== false) {
-            $config = substr_replace($config, $debugBlock, $pos, 0);
-        } else {
-            $config .= $debugBlock;
-        }
+        // Build replacement map
+        $replacements = [
+            '{{DB_NAME}}'         => $this->dbName,
+            '{{DB_USER}}'         => $this->serverConfig['DB_ROOT_USER'] ?? 'root',
+            '{{DB_PASSWORD}}'     => $this->serverConfig['DB_ROOT_PASS'] ?? '',
+            '{{DB_HOST}}'         => $this->serverConfig['DB_HOST'] ?? 'localhost',
+            '{{DB_CHARSET}}'      => 'utf8mb4',
+            '{{DB_COLLATE}}'      => '',
+            '{{TABLE_PREFIX}}'    => $this->tablePrefix,
+            '{{AUTH_KEY}}'        => $keys['AUTH_KEY'],
+            '{{SECURE_AUTH_KEY}}' => $keys['SECURE_AUTH_KEY'],
+            '{{LOGGED_IN_KEY}}'   => $keys['LOGGED_IN_KEY'],
+            '{{NONCE_KEY}}'       => $keys['NONCE_KEY'],
+            '{{AUTH_SALT}}'       => $keys['AUTH_SALT'],
+            '{{SECURE_AUTH_SALT}}'=> $keys['SECURE_AUTH_SALT'],
+            '{{LOGGED_IN_SALT}}'  => $keys['LOGGED_IN_SALT'],
+            '{{NONCE_SALT}}'      => $keys['NONCE_SALT'],
+        ];
+
+        // Replace all placeholders
+        $config = str_replace(array_keys($replacements), array_values($replacements), $template);
 
         if (file_put_contents($this->publicHtml . '/wp-config.php', $config) === false) {
             throw new \RuntimeException('Failed to write wp-config.php.');
