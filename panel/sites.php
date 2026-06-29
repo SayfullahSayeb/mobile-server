@@ -56,9 +56,6 @@ $cfTunnels = cfTunnelsLoad();
     <div class="st" style="margin-bottom:0">Manage Sites</div>
     <div class="df ac g2 fw">
       <span class="ts tm"><?= count($allSites) ?> site<?= count($allSites) !== 1 ? 's' : '' ?></span>
-      <?php if (!empty($ip_addr) && $ip_addr !== 'N/A'): ?>
-      <span class="ts tm" style="color:var(--text2)"><i class="fas fa-network-wired"></i> <?= htmlspecialchars($ip_addr) ?></span>
-      <?php endif; ?>
       <button class="btn btn-p btn-l" onclick="document.getElementById('siteModal').classList.add('show')"><i class="fas fa-plus"></i> Add New</button>
     </div>
   </div>

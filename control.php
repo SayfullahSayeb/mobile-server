@@ -285,14 +285,20 @@ function reloadNginx(): bool {
         }
     } else {
         // Running — reload gracefully
-        exec('nginx -s reload 2>/dev/null', $raw, $rc);
+        exec('nginx -s reload 2>&1', $raw, $rc);
         if ($rc !== 0) {
-            exec('pkill -HUP nginx 2>/dev/null', $raw, $rc);
+            panelLog('nginx -s reload failed: ' . implode("\n", $raw));
+            // Termux nginx often fails signal handling — force restart
+            exec('pkill nginx 2>/dev/null; sleep 1; nginx 2>&1', $raw, $rc);
+            if ($rc !== 0) {
+                panelLog('pkill + nginx start also failed: ' . implode("\n", $raw));
+            }
         }
     }
     sleep(1);
     exec('pgrep nginx 2>/dev/null', $pout, $prc);
     if ($prc !== 0) {
+        panelLog('nginx not running after reload — trying restartNginx');
         return restartNginx();
     }
     return true;
@@ -407,7 +413,14 @@ if ($logged_in) {
                             $wpResult = ['success' => true];
 
                             if ($type === 'wordpress') {
-                                setProgress($name, 'Starting WordPress installation...', 3);
+                                // Ensure MariaDB is running before WordPress installation
+                                exec("pgrep mariadbd 2>/dev/null || pgrep mysqld 2>/dev/null", $mdbOut, $mdbRc);
+                                if ($mdbRc !== 0) {
+                                    setProgress($name, 'Starting MariaDB...', 5);
+                                    exec('mariadbd-safe >/dev/null 2>&1 &');
+                                    sleep(3);
+                                }
+                                setProgress($name, 'Starting WordPress installation...', 10);
                                 $installer = new WordPressInstaller($name);
                                 $wpResult = $installer->createWebsite($domain, $port);
                             } else {
