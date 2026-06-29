@@ -386,6 +386,8 @@ function generateNginxBlock(string $domain, int $port, string $path): string {
         . "        fastcgi_pass $phpSocket;\n"
         . "        fastcgi_index index.php;\n"
         . "        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;\n"
+        . "        fastcgi_param HTTP_X_FORWARDED_PROTO \$http_x_forwarded_proto;\n"
+        . "        fastcgi_param HTTP_X_FORWARDED_FOR \$http_x_forwarded_for;\n"
         . "    }\n"
         . "}\n";
 }

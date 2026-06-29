@@ -29,6 +29,14 @@ define('DB_HOST', '{{DB_HOST}}');
 define('DB_CHARSET', '{{DB_CHARSET}}');
 define('DB_COLLATE', '{{DB_COLLATE}}');
 
+// ** Detect HTTPS from Cloudflare tunnel / reverse proxy ** //
+if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+}
+if (isset($_SERVER['HTTP_X_FORWARDED_HOST'])) {
+    $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_X_FORWARDED_HOST'];
+}
+
 // ** Authentication keys and salts ** //
 define('AUTH_KEY',         '{{AUTH_KEY}}');
 define('SECURE_AUTH_KEY',  '{{SECURE_AUTH_KEY}}');
