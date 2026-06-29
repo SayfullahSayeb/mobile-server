@@ -4,73 +4,53 @@
   </div>
   <?php
   $cfTunnels = cfTunnelsLoad();
-  $config = getSitesConfig();
-  $activeTunnels = [];
-  foreach ($cfTunnels as $site => $t) {
-      $running = false;
-      if (!empty($t['pid'])) {
-          exec("kill -0 " . (int)$t['pid'] . " 2>/dev/null", $null, $rc);
-          $running = $rc === 0;
-      }
-      $url = $t['url'] ?? '';
-      if (!$url && $running) {
-          $logFile = LOG_DIR . '/cf_tunnel_' . $site . '.log';
+  $panelTunnel = $cfTunnels['_panel'] ?? null;
+  $panelRunning = false;
+  $panelUrl = '';
+  if ($panelTunnel && !empty($panelTunnel['pid'])) {
+      exec("kill -0 " . (int)$panelTunnel['pid'] . " 2>/dev/null", $null, $rc);
+      $panelRunning = $rc === 0;
+      $panelUrl = $panelTunnel['url'] ?? '';
+      if (!$panelUrl && $panelRunning) {
+          $logFile = LOG_DIR . '/cf_tunnel__panel.log';
           if (is_file($logFile)) {
               $content = @file_get_contents($logFile);
               if (preg_match('/https:\/\/[a-z0-9-]+\.trycloudflare\.com/', $content, $m)) {
-                  $url = $m[0];
-                  $cfTunnels[$site]['url'] = $url;
+                  $panelUrl = $m[0];
+                  $cfTunnels['_panel']['url'] = $panelUrl;
                   cfTunnelsSave($cfTunnels);
               }
           }
       }
-      if (!$running) {
-          @unlink(LOG_DIR . '/cf_tunnel_' . $site . '.log');
-      }
-      $activeTunnels[$site] = ['running' => $running, 'url' => $url, 'port' => $t['port'] ?? 8080];
+      if (!$panelRunning) @unlink(LOG_DIR . '/cf_tunnel__panel.log');
   }
   ?>
-  <?php if (!empty($activeTunnels)): ?>
   <div class="ig">
-    <?php foreach ($activeTunnels as $site => $info): ?>
-    <div class="ii" style="flex-direction:column;align-items:flex-start;gap:6px">
-      <div class="df jb ac" style="width:100%">
-        <div>
-          <div class="l" style="margin-bottom:2px"><?= htmlspecialchars($site) ?></div>
-          <?php if ($info['running'] && $info['url']): ?>
-          <a href="<?= htmlspecialchars($info['url']) ?>" target="_blank" style="color:var(--blue);font-size:12px;word-break:break-all"><?= htmlspecialchars($info['url']) ?></a>
-          <?php elseif ($info['running']): ?>
-          <span style="color:var(--text3);font-size:12px">Starting...</span>
-          <?php else: ?>
-          <span style="color:var(--text3);font-size:12px">Stopped</span>
-          <?php endif; ?>
-        </div>
-        <div class="df ac g1">
-          <?php if ($info['running']): ?>
-          <form method="post" style="display:inline">
-            <?= csrf() ?>
-            <input type="hidden" name="action" value="cf_tunnel_stop">
-            <input type="hidden" name="site" value="<?= htmlspecialchars($site) ?>">
-            <button type="submit" class="btn btn-s btn-d" title="Stop Tunnel"><i class="fas fa-stop"></i> Stop</button>
-          </form>
-          <?php else: ?>
-          <form method="post" style="display:inline">
-            <?= csrf() ?>
-            <input type="hidden" name="action" value="cf_tunnel_start">
-            <input type="hidden" name="site" value="<?= htmlspecialchars($site) ?>">
-            <button type="submit" class="btn btn-s btn-p" title="Start Tunnel"><i class="fas fa-play"></i> Start</button>
-          </form>
-          <?php endif; ?>
-        </div>
+    <div class="ii">
+      <div class="l">Status</div>
+      <div class="v">
+        <span class="bdg <?= $panelRunning ? 'on' : 'off' ?>"><span class="dt"></span><?= $panelRunning ? 'Running' : 'Stopped' ?></span>
       </div>
     </div>
-    <?php endforeach; ?>
+    <?php if ($panelRunning && $panelUrl): ?>
+    <div class="ii"><div class="l">URL</div><div class="v"><a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" style="color:var(--blue);word-break:break-all"><?= htmlspecialchars($panelUrl) ?></a></div></div>
+    <?php endif; ?>
   </div>
-  <?php else: ?>
-  <div class="ig">
-    <div class="ii"><div class="l">Status</div><div class="v" style="color:var(--text3)">No active tunnels. Start one from Sites tab.</div></div>
+  <div class="df ac g2 mt2">
+    <form method="post" style="display:inline">
+      <?= csrf() ?>
+      <input type="hidden" name="action" value="<?= $panelRunning ? 'cf_tunnel_stop' : 'cf_tunnel_start' ?>">
+      <input type="hidden" name="site" value="_panel">
+      <input type="hidden" name="tunnel_port" value="8080">
+      <button type="submit" class="btn <?= $panelRunning ? 'btn-d' : 'btn-p' ?>">
+        <i class="fas <?= $panelRunning ? 'fa-stop' : 'fa-play' ?>"></i>
+        <?= $panelRunning ? 'Stop Tunnel' : 'Start Tunnel' ?>
+      </button>
+    </form>
+    <?php if ($panelRunning && $panelUrl): ?>
+    <a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" class="btn btn-p"><i class="fas fa-external-link-alt"></i> Open Panel via Tunnel</a>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
 </div>
 
 <div class="sec">

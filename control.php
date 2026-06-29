@@ -891,10 +891,13 @@ if ($logged_in) {
                 if (!empty($tunnels[$site]['pid'])) {
                     exec("kill " . (int)$tunnels[$site]['pid'] . " 2>/dev/null");
                 }
-                $port = 8080;
-                $config = getSitesConfig();
-                if (isset($config[$site]['port']) && $config[$site]['port'] > 0) {
-                    $port = (int)$config[$site]['port'];
+                $port = (int)($_POST['tunnel_port'] ?? 0);
+                if ($port <= 0) {
+                    $port = 8080;
+                    $config = getSitesConfig();
+                    if (isset($config[$site]['port']) && $config[$site]['port'] > 0) {
+                        $port = (int)$config[$site]['port'];
+                    }
                 }
                 $logFile = cfTunnelLogFile($site);
                 @unlink($logFile);
