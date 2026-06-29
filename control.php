@@ -193,12 +193,20 @@ if (isset($_GET['raw_logs']) && $_GET['raw_logs'] === 'json') {
     exit;
 }
 
-// Clear panel logs endpoint
+// Clear logs endpoint
 if (isset($_GET['clear_logs'])) {
-    $logDir = LOG_DIR;
-    $logFiles = glob($logDir . '/*.log');
-    if ($logFiles) {
-        foreach ($logFiles as $f) {
+    $home = getenv('HOME') ?: '/data/data/com.termux/files/home';
+    $logDir = $home . '/server/logs';
+    $prefix = '/data/data/com.termux/files/usr';
+    // Clear panel-owned logs
+    $targets = glob($logDir . '/*.log') ?: [];
+    // Also clear system logs we read from
+    $targets[] = $prefix . '/var/log/nginx/error.log';
+    $targets[] = $prefix . '/var/log/php-fpm.log';
+    $targets[] = $prefix . '/var/log/mariadb.log';
+    $targets[] = $prefix . '/var/lib/mysql/error.log';
+    foreach ($targets as $f) {
+        if ($f && is_file($f)) {
             @file_put_contents($f, '');
         }
     }

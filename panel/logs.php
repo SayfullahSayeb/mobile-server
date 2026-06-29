@@ -53,7 +53,11 @@
   document.getElementById('refreshBtn').addEventListener('click', refreshLogs);
   document.getElementById('clearBtn').addEventListener('click', function() {
     if (!confirm('Clear all logs?')) return;
-    fetch('?clear_logs=1').then(function() { allLogs = []; renderLogs(); });
+    fetch('?clear_logs=1').then(function() {
+      allLogs = [];
+      renderLogs();
+      setTimeout(refreshLogs, 500);
+    });
   });
 
   refreshLogs();
