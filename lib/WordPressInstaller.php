@@ -58,9 +58,9 @@ class WordPressInstaller {
             exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$dbName`") . " 2>/dev/null");
             exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS '$dbUser'@'localhost'") . " 2>/dev/null");
         } else {
-            $dbBase = 'ms_' . str_replace('-', '_', $siteName);
+            $dbBase = str_replace('-', '_', $siteName);
             exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$dbBase`") . " 2>/dev/null");
-            exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS 'msu_$dbBase'@'localhost'") . " 2>/dev/null");
+            exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS '$dbBase'@'localhost'") . " 2>/dev/null");
         }
         $siteDir = SITES_DIR . '/' . $siteName;
         if (is_dir($siteDir)) {
@@ -72,8 +72,8 @@ class WordPressInstaller {
 
     private function generateCredentials(): void {
         $dbBase = str_replace('-', '_', $this->siteName);
-        $this->dbName = 'ms_' . $dbBase;
-        $this->dbUser = 'msu_' . $dbBase;
+        $this->dbName = $dbBase;
+        $this->dbUser = $dbBase;
         $this->dbPass = $this->randomPassword(32);
         $this->tablePrefix = 'wp_' . bin2hex(random_bytes(2)) . '_';
     }
@@ -120,7 +120,22 @@ class WordPressInstaller {
         $detail = !empty($out) ? implode('; ', $out) : 'not found';
 
         if (!$serverRunning) {
-            throw new \RuntimeException("MariaDB server is not running. Start MariaDB from the Dashboard first.");
+            // Auto-start MariaDB
+            panelLog("[WordPress] MariaDB not running — attempting to start...");
+            exec('mariadbd-safe >/dev/null 2>&1 &', $null, $startRc);
+            sleep(3);
+            // Re-check connectivity
+            foreach (['mariadb', 'mysql'] as $bin) {
+                exec("command -v $bin 2>/dev/null", $null, $rc);
+                if ($rc !== 0) continue;
+                exec("$bin -u root -e 'SELECT 1' 2>&1", $out, $rc2);
+                if ($rc2 === 0) {
+                    $this->mdbCli = "$bin -u root";
+                    panelLog("[WordPress] MariaDB started automatically");
+                    return;
+                }
+            }
+            throw new \RuntimeException("MariaDB server is not running and could not be started automatically. Start it from the Dashboard first.");
         }
 
         // Binary exists, server is running, but -u root failed — try without user

@@ -259,12 +259,12 @@ function restartNginx(): bool {
         if ($rc === 0) break;
     }
     sleep(1);
-    exec('pgrep -x nginx 2>/dev/null', $pout, $prc);
+    exec('pgrep nginx 2>/dev/null', $pout, $prc);
     if ($prc !== 0) {
         // Last resort: try starting nginx one more time
         exec('nginx 2>&1', $raw, $rc);
         sleep(1);
-        exec('pgrep -x nginx 2>/dev/null', $pout, $prc);
+        exec('pgrep nginx 2>/dev/null', $pout, $prc);
     }
     return $prc === 0;
 }
@@ -275,13 +275,27 @@ function reloadNginx(): bool {
         error_log('nginx -t: ' . implode("\n", $raw));
         return false;
     }
-    exec('nginx -s reload 2>/dev/null', $raw, $rc);
-    if ($rc !== 0) {
-        exec('pkill -HUP nginx 2>/dev/null', $raw, $rc);
+    exec('pgrep nginx 2>/dev/null', $pout, $prc);
+    if ($prc !== 0) {
+        // Not running — start it, fall back to restartNginx if that fails
+        exec('nginx 2>&1', $raw, $rc);
+        if ($rc !== 0) {
+            error_log('nginx start failed: ' . implode("\n", $raw));
+            return restartNginx();
+        }
+    } else {
+        // Running — reload gracefully
+        exec('nginx -s reload 2>/dev/null', $raw, $rc);
+        if ($rc !== 0) {
+            exec('pkill -HUP nginx 2>/dev/null', $raw, $rc);
+        }
     }
     sleep(1);
-    exec('pgrep -x nginx 2>/dev/null', $pout, $prc);
-    return $prc === 0;
+    exec('pgrep nginx 2>/dev/null', $pout, $prc);
+    if ($prc !== 0) {
+        return restartNginx();
+    }
+    return true;
 }
 
 $services = [
