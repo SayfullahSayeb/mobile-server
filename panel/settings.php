@@ -1,32 +1,76 @@
 <div class="sec">
   <div class="df jb ac fw g2 mb2">
-    <div class="st" style="margin-bottom:0">HTTPS</div>
+    <div class="st" style="margin-bottom:0">Tunnel</div>
   </div>
+  <?php
+  $cfTunnels = cfTunnelsLoad();
+  $config = getSitesConfig();
+  $activeTunnels = [];
+  foreach ($cfTunnels as $site => $t) {
+      $running = false;
+      if (!empty($t['pid'])) {
+          exec("kill -0 " . (int)$t['pid'] . " 2>/dev/null", $null, $rc);
+          $running = $rc === 0;
+      }
+      $url = $t['url'] ?? '';
+      if (!$url && $running) {
+          $logFile = LOG_DIR . '/cf_tunnel_' . $site . '.log';
+          if (is_file($logFile)) {
+              $content = @file_get_contents($logFile);
+              if (preg_match('/https:\/\/[a-z0-9-]+\.trycloudflare\.com/', $content, $m)) {
+                  $url = $m[0];
+                  $cfTunnels[$site]['url'] = $url;
+                  cfTunnelsSave($cfTunnels);
+              }
+          }
+      }
+      if (!$running) {
+          @unlink(LOG_DIR . '/cf_tunnel_' . $site . '.log');
+      }
+      $activeTunnels[$site] = ['running' => $running, 'url' => $url, 'port' => $t['port'] ?? 8080];
+  }
+  ?>
+  <?php if (!empty($activeTunnels)): ?>
   <div class="ig">
-    <div class="ii">
-      <div class="l">Status</div>
-      <div class="v">
-        <span class="bdg <?= $https_enabled ? 'on' : 'off' ?>"><span class="dt"></span><?= $https_enabled ? 'Enabled' : 'Disabled' ?></span>
+    <?php foreach ($activeTunnels as $site => $info): ?>
+    <div class="ii" style="flex-direction:column;align-items:flex-start;gap:6px">
+      <div class="df jb ac" style="width:100%">
+        <div>
+          <div class="l" style="margin-bottom:2px"><?= htmlspecialchars($site) ?></div>
+          <?php if ($info['running'] && $info['url']): ?>
+          <a href="<?= htmlspecialchars($info['url']) ?>" target="_blank" style="color:var(--blue);font-size:12px;word-break:break-all"><?= htmlspecialchars($info['url']) ?></a>
+          <?php elseif ($info['running']): ?>
+          <span style="color:var(--text3);font-size:12px">Starting...</span>
+          <?php else: ?>
+          <span style="color:var(--text3);font-size:12px">Stopped</span>
+          <?php endif; ?>
+        </div>
+        <div class="df ac g1">
+          <?php if ($info['running']): ?>
+          <form method="post" style="display:inline">
+            <?= csrf() ?>
+            <input type="hidden" name="action" value="cf_tunnel_stop">
+            <input type="hidden" name="site" value="<?= htmlspecialchars($site) ?>">
+            <button type="submit" class="btn btn-s btn-d" title="Stop Tunnel"><i class="fas fa-stop"></i> Stop</button>
+          </form>
+          <?php else: ?>
+          <form method="post" style="display:inline">
+            <?= csrf() ?>
+            <input type="hidden" name="action" value="cf_tunnel_start">
+            <input type="hidden" name="site" value="<?= htmlspecialchars($site) ?>">
+            <button type="submit" class="btn btn-s btn-p" title="Start Tunnel"><i class="fas fa-play"></i> Start</button>
+          </form>
+          <?php endif; ?>
+        </div>
       </div>
     </div>
-    <?php if ($https_enabled): ?>
-    <div class="ii"><div class="l">URL</div><div class="v"><a href="https://<?= htmlspecialchars($ip_addr) ?>:8443" target="_blank" style="color:var(--blue)">https://<?= htmlspecialchars($ip_addr) ?>:8443</a></div></div>
-    <div class="ii"><div class="l">Certificate</div><div class="v" style="color:var(--text2)">Self-signed (10 years)</div></div>
-    <?php endif; ?>
+    <?php endforeach; ?>
   </div>
-  <div class="df ac g2 mt2">
-    <form method="post">
-      <?= csrf() ?>
-      <input type="hidden" name="action" value="<?= $https_enabled ? 'disable_https' : 'setup_https' ?>">
-      <button type="submit" class="btn <?= $https_enabled ? 'btn-d' : 'btn-p' ?>">
-        <i class="fas <?= $https_enabled ? 'fa-toggle-off' : 'fa-toggle-on' ?>"></i>
-        <?= $https_enabled ? 'Disable HTTPS' : 'Enable HTTPS' ?>
-      </button>
-    </form>
-    <?php if ($https_enabled): ?>
-    <a href="https://<?= htmlspecialchars($ip_addr) ?>:8443" target="_blank" class="btn btn-p"><i class="fas fa-external-link-alt"></i> Open Panel via HTTPS</a>
-    <?php endif; ?>
+  <?php else: ?>
+  <div class="ig">
+    <div class="ii"><div class="l">Status</div><div class="v" style="color:var(--text3)">No active tunnels. Start one from Sites tab.</div></div>
   </div>
+  <?php endif; ?>
 </div>
 
 <div class="sec">
