@@ -131,21 +131,76 @@ if (isset($_GET['wp_progress'])) {
     exit;
 }
 
-// Raw panel log endpoint
-if (isset($_GET['raw_logs'])) {
+// Raw panel log endpoint (plain text)
+if (isset($_GET['raw_logs']) && $_GET['raw_logs'] !== 'json') {
     header('Content-Type: text/plain; charset=utf-8');
-    $logFile = LOG_DIR . '/panel.log';
-    if (is_file($logFile)) {
-        readfile($logFile);
+    $logDir = LOG_DIR;
+    $prefix = '/data/data/com.termux/files/usr';
+    $logFiles = [
+        $logDir . '/panel.log',
+        $logDir . '/nginx.log',
+        $prefix . '/var/log/nginx/error.log',
+        $logDir . '/php-fpm.log',
+        $prefix . '/var/log/php-fpm.log',
+        $logDir . '/mariadb.log',
+        $prefix . '/var/log/mariadb.log',
+    ];
+    $cfLogs = glob($logDir . '/cf_tunnel_*.log');
+    if ($cfLogs) $logFiles = array_merge($logFiles, $cfLogs);
+
+    foreach ($logFiles as $f) {
+        if (is_file($f)) {
+            echo "=== " . basename($f) . " ===\n";
+            echo @file_get_contents($f) . "\n\n";
+        }
     }
+    exit;
+}
+
+// Raw panel log endpoint (JSON)
+if (isset($_GET['raw_logs']) && $_GET['raw_logs'] === 'json') {
+    $home = getenv('HOME') ?: '/data/data/com.termux/files/home';
+    $logDir = $home . '/server/logs';
+    $prefix = '/data/data/com.termux/files/usr';
+    $services = [
+        ['label' => 'Panel',       'paths' => [$logDir . '/panel.log']],
+        ['label' => 'Nginx',       'paths' => [$logDir . '/nginx.log', $prefix . '/var/log/nginx/error.log']],
+        ['label' => 'PHP-FPM',     'paths' => [$logDir . '/php-fpm.log', $prefix . '/var/log/php-fpm.log']],
+        ['label' => 'MariaDB',     'paths' => [$logDir . '/mariadb.log', $prefix . '/var/log/mariadb.log', $prefix . '/var/lib/mysql/error.log']],
+        ['label' => 'Cloudflared', 'paths' => glob($logDir . '/cf_tunnel_*.log') ?: []],
+    ];
+    $maxLines = 300;
+    $allLines = [];
+    foreach ($services as $info) {
+        foreach ($info['paths'] as $p) {
+            if (!is_file($p)) continue;
+            $lines = @file($p);
+            if (!$lines) continue;
+            $lines = array_slice($lines, -$maxLines);
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                if ($trimmed === '') continue;
+                $level = 'info';
+                $upper = strtoupper($trimmed);
+                if (preg_match('/\b(emerg|alert|critical|error|fail)\b/i', $upper)) $level = 'error';
+                elseif (preg_match('/\b(warning|warn)\b/i', $upper)) $level = 'warn';
+                $allLines[] = ['svc' => $info['label'], 'level' => $level, 'text' => $trimmed];
+            }
+        }
+    }
+    header('Content-Type: application/json');
+    echo json_encode($allLines);
     exit;
 }
 
 // Clear panel logs endpoint
 if (isset($_GET['clear_logs'])) {
-    $logFile = LOG_DIR . '/panel.log';
-    if (is_file($logFile)) {
-        @ftruncate(fopen($logFile, 'r+'), 0);
+    $logDir = LOG_DIR;
+    $logFiles = glob($logDir . '/*.log');
+    if ($logFiles) {
+        foreach ($logFiles as $f) {
+            @file_put_contents($f, '');
+        }
     }
     header('Content-Type: application/json');
     echo json_encode(['ok' => true]);

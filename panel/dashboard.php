@@ -6,7 +6,6 @@
       <input type="hidden" name="action" value="restart_all">
       <button type="submit" class="btn btn-w btn-s" onclick="return confirm('Restart all services?')">↻ Restart All</button>
     </form>
-    <a href="?tab=ssh&cmd=mobile-server+update" class="btn btn-p btn-s"><i class="fas fa-sync-alt"></i> Update</a>
   </div>
 </div>
 <div class="sr">

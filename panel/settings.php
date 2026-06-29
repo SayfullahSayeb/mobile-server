@@ -76,6 +76,7 @@
   <div class="df jb ac fw g2 mb2">
     <div class="st" style="margin-bottom:0">Diagnostics</div>
     <div class="df ac g2 fw">
+      <a href="?tab=ssh&cmd=mobile-server+update" class="btn btn-s btn-p"><i class="fas fa-sync-alt"></i> Update</a>
       <form method="post" style="display:inline">
         <?= csrf() ?>
         <input type="hidden" name="action" value="nginx_test">

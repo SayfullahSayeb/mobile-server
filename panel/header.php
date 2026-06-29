@@ -58,7 +58,7 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
   <div class="sb-foot">
     <a href="#" class="sb-logout" id="themeToggle" onclick="toggleTheme();return false"><i class="fas fa-sun"></i> <span id="themeLabel">Light Mode</span></a>
     <a href="?logout=1" class="sb-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
-    <div class="sb-ver">Mobile Server v1.0</div>
+    <div class="sb-ver">Mobile Server v1.0.60</div>
   </div>
 </div>
 <div class="main">
