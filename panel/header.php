@@ -3,7 +3,7 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; script-src 'self' https://code.jquery.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; frame-ancestors 'self'; connect-src 'self';");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' https://code.jquery.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; frame-ancestors 'self'; connect-src 'self' https://cdn.jsdelivr.net;");
 
 function csrf(): string {
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token'] ?? '') . '">';
@@ -17,6 +17,10 @@ function csrf(): string {
 <title>Mobile Server</title>
 <link rel="stylesheet" href="panel/control.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script>
+(function(){var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.setAttribute('data-theme','light')};var l=document.getElementById('themeLabel');if(l){l.textContent=t==='light'?'Dark Mode':'Light Mode'}})()
+function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data-theme')==='light'?'dark':'light';h.setAttribute('data-theme',n);localStorage.setItem('theme',n);document.getElementById('themeToggle').innerHTML=(n==='light'?'<i class="fas fa-moon"></i>':'<i class="fas fa-sun"></i>')+' <span id="themeLabel">'+(n==='light'?'Dark Mode':'Light Mode')+'</span>'}
+</script>
 </head>
 <body>
 <div class="sb-overlay" onclick="toggleSidebar()"></div>
@@ -52,6 +56,7 @@ function csrf(): string {
     </a>
   </div>
   <div class="sb-foot">
+    <a href="#" class="sb-logout" id="themeToggle" onclick="toggleTheme();return false"><i class="fas fa-sun"></i> <span id="themeLabel">Light Mode</span></a>
     <a href="?logout=1" class="sb-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
     <div class="sb-ver">Mobile Server v1.0</div>
   </div>

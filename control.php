@@ -129,6 +129,27 @@ if (isset($_GET['wp_progress'])) {
     exit;
 }
 
+// Raw panel log endpoint
+if (isset($_GET['raw_logs'])) {
+    header('Content-Type: text/plain; charset=utf-8');
+    $logFile = LOG_DIR . '/panel.log';
+    if (is_file($logFile)) {
+        readfile($logFile);
+    }
+    exit;
+}
+
+// Clear panel logs endpoint
+if (isset($_GET['clear_logs'])) {
+    $logFile = LOG_DIR . '/panel.log';
+    if (is_file($logFile)) {
+        @ftruncate(fopen($logFile, 'r+'), 0);
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
 // Cloudflared tunnel status poll endpoint
 if (isset($_GET['cf_tunnel_status'])) {
     header('Content-Type: application/json');
@@ -363,6 +384,7 @@ if ($logged_in) {
                         $flash = ['error', 'No available port (all 8081-8999 are in use)'];
                     } else {
                         if (!is_dir(NGINX_SITES_DIR)) @mkdir(NGINX_SITES_DIR, 0755, true);
+                        @mkdir($publicHtml, 0755, true);
                         $block = generateNginxBlock($domain, $port, $publicHtml);
                         if ($block === '') {
                             $flash = ['error', "Failed to generate nginx config for '$name' — check directory permissions"];

@@ -102,6 +102,11 @@ class WordPressInstaller {
         foreach (['mariadb', 'mysql'] as $bin) {
             exec("command -v $bin 2>/dev/null", $null, $rc);
             if ($rc === 0) {
+                exec("$bin -u root -e 'SELECT 1' 2>&1", $out, $rc2);
+                if ($rc2 === 0) {
+                    $this->mdbCli = "$bin -u root";
+                    return;
+                }
                 exec("$bin -e 'SELECT 1' 2>&1", $out, $rc2);
                 if ($rc2 === 0) {
                     $this->mdbCli = $bin;
@@ -114,7 +119,7 @@ class WordPressInstaller {
     }
 
     private function mariadb(string $sql): array {
-        exec(escapeshellarg($this->mdbCli) . ' -e ' . escapeshellarg($sql) . ' 2>&1', $out, $rc);
+        exec($this->mdbCli . ' -e ' . escapeshellarg($sql) . ' 2>&1', $out, $rc);
         return ['rc' => $rc, 'out' => implode("\n", $out)];
     }
 

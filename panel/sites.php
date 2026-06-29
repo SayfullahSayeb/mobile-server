@@ -196,7 +196,8 @@ $cfTunnels = cfTunnelsLoad();
           <span>WordPress Site</span>
         </label>
       </div>
-      <input type="text" name="site_name" id="siteName" class="inp" placeholder="Site name (e.g. myapp)" required pattern="[a-z0-9_-]+" title="Letters, numbers, hyphens, underscores only">
+      <div class="st2" style="margin:6px 0 8px">Site Name</div>
+      <input type="text" name="site_name" id="siteName" class="inp" placeholder="e.g. myapp" required pattern="[a-z0-9_\-]+" title="Letters, numbers, hyphens, underscores only">
       <input type="hidden" name="site_domain" id="siteDomain" value="">
       <div class="modal-footer">
         <button type="button" class="btn btn-d" onclick="closeModal()">Cancel</button>
