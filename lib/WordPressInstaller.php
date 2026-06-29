@@ -101,21 +101,41 @@ class WordPressInstaller {
     private function findMariaDB(): void {
         foreach (['mariadb', 'mysql'] as $bin) {
             exec("command -v $bin 2>/dev/null", $null, $rc);
-            if ($rc === 0) {
-                exec("$bin -u root -e 'SELECT 1' 2>&1", $out, $rc2);
-                if ($rc2 === 0) {
-                    $this->mdbCli = "$bin -u root";
-                    return;
-                }
-                exec("$bin -e 'SELECT 1' 2>&1", $out, $rc2);
-                if ($rc2 === 0) {
-                    $this->mdbCli = $bin;
-                    return;
-                }
+            if ($rc !== 0) continue;
+
+            exec("$bin -u root -e 'SELECT 1' 2>&1", $out, $rc2);
+            if ($rc2 === 0) {
+                $this->mdbCli = "$bin -u root";
+                return;
             }
         }
+
+        // If we got here no binary worked as root — check if server is running
+        $serverRunning = true;
+        exec("pgrep mariadbd 2>/dev/null || pgrep mysqld 2>/dev/null", $pout, $prc);
+        if ($prc !== 0) {
+            $serverRunning = false;
+        }
+
         $detail = !empty($out) ? implode('; ', $out) : 'not found';
-        throw new \RuntimeException("MariaDB/MySQL CLI unreachable ($detail). Start MariaDB from the Dashboard.");
+
+        if (!$serverRunning) {
+            throw new \RuntimeException("MariaDB server is not running. Start MariaDB from the Dashboard first.");
+        }
+
+        // Binary exists, server is running, but -u root failed — try without user
+        foreach (['mariadb', 'mysql'] as $bin) {
+            exec("command -v $bin 2>/dev/null", $null, $rc);
+            if ($rc !== 0) continue;
+            exec("$bin -e 'SELECT 1' 2>&1", $out2, $rc2);
+            if ($rc2 === 0) {
+                $this->mdbCli = $bin;
+                panelLog("[WordPress] WARNING: connected without -u root — anonymous user may lack privileges");
+                return;
+            }
+        }
+
+        throw new \RuntimeException("MariaDB/MySQL CLI unreachable ($detail). Make sure MariaDB package is installed and running.");
     }
 
     private function mariadb(string $sql): array {

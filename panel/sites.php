@@ -51,6 +51,7 @@ ksort($allSites);
 $cfTunnels = cfTunnelsLoad();
 ?>
 <div class="sec">
+  <div id="flash-placeholder" class="flash" style="display:none"></div>
   <div class="df jb ac fw g2 mb2">
     <div class="st" style="margin-bottom:0">Manage Sites</div>
     <div class="df ac g2 fw">
@@ -243,7 +244,7 @@ $cfTunnels = cfTunnelsLoad();
       <span class="modal-title">Delete Site</span>
       <span class="modal-close" onclick="closeDeleteModal()">&times;</span>
     </div>
-    <form method="post" id="deleteForm">
+    <form method="post" id="deleteForm" onsubmit="return submitDeleteForm(this)">
       <?= csrf() ?>
       <input type="hidden" name="action" value="delete_site">
       <input type="hidden" name="site_name" id="deleteSiteName" value="">
@@ -313,22 +314,25 @@ function editSite(name, domain, type) {
 function submitSiteForm(form) {
   var type = document.querySelector('input[name="site_type"]:checked').value;
   var isWp = type === 'wordpress';
+  var editMode = document.getElementById('formAction').value === 'edit_site';
   var siteName = document.getElementById('siteName').value;
   var data = new FormData(form);
+  data.append('ajax', '1');
   var modal = document.getElementById('progressModal');
   var bar = document.getElementById('progressBar');
   var status = document.getElementById('progressStatus');
   var pct = document.getElementById('progressPct');
 
   modal.classList.add('show');
-  document.getElementById('progressTitle').innerHTML = '<i class="fas fa-cog fa-spin"></i> Creating ' + (isWp ? 'WordPress' : 'Static') + ' Site...';
+  var actionLabel = editMode ? 'Updating' : 'Creating';
+  document.getElementById('progressTitle').innerHTML = '<i class="fas fa-cog fa-spin"></i> ' + actionLabel + ' ' + (isWp ? 'WordPress' : 'Static') + ' Site...';
   document.getElementById('submitBtn').disabled = true;
 
-  status.textContent = isWp ? 'Preparing...' : 'Creating site...';
+  status.textContent = editMode ? 'Saving...' : (isWp ? 'Preparing...' : 'Creating site...');
 
-  // Poll real progress from server
+  // Poll real progress from server (create only)
   var pollInterval = null;
-  if (isWp && siteName) {
+  if (!editMode && isWp && siteName) {
     pollInterval = setInterval(function() {
       fetch('?wp_progress=' + encodeURIComponent(siteName))
         .then(function(r) { return r.json(); })
@@ -347,8 +351,8 @@ function submitSiteForm(form) {
           }
         }).catch(function() {});
     }, 1000);
-  } else {
-    // Static site: animate a simple progress
+  } else if (!editMode) {
+    // Static site (create only): animate a simple progress
     var anim = 10;
     pollInterval = setInterval(function() {
       if (anim < 90) {
@@ -363,16 +367,58 @@ function submitSiteForm(form) {
   fetch(window.location.href, {
     method: 'POST',
     body: data
-  }).then(function(r) { return r.text(); }).then(function() {
+  }).then(function(r) { return r.json(); }).then(function(resp) {
     if (pollInterval) clearInterval(pollInterval);
-    bar.style.width = '100%';
-    pct.textContent = '100%';
-    status.textContent = 'Done! Reloading...';
-    setTimeout(function() { location.reload(); }, 600);
+    if (resp.success) {
+      bar.style.width = '100%';
+      pct.textContent = '100%';
+      status.textContent = 'Done! Reloading...';
+      setTimeout(function() { location.reload(); }, 600);
+    } else {
+      document.getElementById('progressTitle').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:var(--red)"></i> Installation Failed';
+      status.textContent = resp.message || 'An error occurred';
+      document.getElementById('submitBtn').disabled = false;
+    }
   }).catch(function(err) {
     if (pollInterval) clearInterval(pollInterval);
-    status.textContent = 'Error: ' + err;
+    document.getElementById('progressTitle').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:var(--red)"></i> Request Failed';
+    status.textContent = 'Network error: ' + err;
     document.getElementById('submitBtn').disabled = false;
+  });
+
+  return false;
+}
+
+// ── AJAX delete site ──────────────────────────────────────────────
+function submitDeleteForm(form) {
+  if (!confirm('Delete this site?')) return false;
+  var name = document.getElementById('deleteSiteName').value;
+  closeDeleteModal();
+
+  var flash = document.getElementById('flash-placeholder');
+  flash.className = 'flash suc';
+  flash.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Deleting ' + name + '...';
+  flash.style.display = '';
+
+  var data = new FormData(form);
+  data.append('ajax', '1');
+
+  fetch(window.location.href, {
+    method: 'POST',
+    body: data
+  }).then(function(r) { return r.json(); }).then(function(resp) {
+    if (resp.success) {
+      flash.className = 'flash suc';
+      flash.innerHTML = '<i class="fas fa-check-circle"></i> ' + (resp.message || 'Site deleted');
+      setTimeout(function() { location.reload(); }, 800);
+    } else {
+      flash.className = 'flash err';
+      flash.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + (resp.message || 'Delete failed');
+      document.getElementById('submitBtn').disabled = false;
+    }
+  }).catch(function(err) {
+    flash.className = 'flash err';
+    flash.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Network error: ' + err;
   });
 
   return false;

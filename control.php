@@ -471,10 +471,9 @@ if ($logged_in) {
                     if (!$reloadOk) {
                         $reloadOk = reloadNginx();
                     }
-                    if ($reloadOk) {
-                        $flash = ['success', $msg];
-                    } else {
-                        $flash = ['warning', "Site '$name' deleted but nginx reload failed — run 'nginx -t' in Termux to diagnose"];
+                    $flash = ['success', $msg];
+                    if (!$reloadOk) {
+                        panelLog("Deleted site '$name' — nginx reload warning: run 'nginx -t' to check config");
                     }
                     panelLog("Deleted site '$name'" . ($deleteFiles ? '' : ' (kept files)'));
                 }
@@ -724,6 +723,38 @@ if ($logged_in) {
                 $flash = ['error', 'HTTPS is not enabled'];
             }
         }
+        // AJAX responses for create_site / delete_site
+        if (!empty($_POST['ajax'])) {
+            if ($action === 'create_site') {
+                header('Content-Type: application/json');
+                $msg = $flash ? strip_tags($flash[1]) : 'Unknown error';
+                $isSuccess = $flash && $flash[0] === 'success';
+                $res = ['success' => $isSuccess, 'message' => $msg];
+                if ($isSuccess && !empty($url)) {
+                    $res['url'] = $url;
+                }
+                echo json_encode($res);
+                exit;
+            }
+            if ($action === 'delete_site') {
+                header('Content-Type: application/json');
+                if ($flash && $flash[0] !== 'success') {
+                    echo json_encode(['success' => false, 'message' => strip_tags($flash[1])]);
+                } else {
+                    echo json_encode(['success' => true, 'message' => strip_tags($flash[1] ?? 'Site deleted')]);
+                }
+                exit;
+            }
+            if ($action === 'edit_site') {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => $flash && $flash[0] === 'success',
+                    'message' => $flash ? strip_tags($flash[1]) : 'Updated',
+                ]);
+                exit;
+            }
+        }
+
         if (true) {
             if (isset($flash)) {
                 $_SESSION['_flash'] = $flash;
