@@ -2,16 +2,24 @@
   <div id="term-container" style="flex:1;min-height:0;padding:8px;background:#0d1117;position:relative">
     <div id="term-status" style="display:flex;align-items:center;justify-content:center;height:100%;color:#8b949e;font-size:15px;gap:10px;flex-direction:column">
       <i class="fas fa-terminal"></i> Terminal ready
-      <div id="term-loading" style="font-size:13px;color:#64748b;margin-top:4px">Loading xterm.js...</div>
+      <div id="term-loading" style="font-size:13px;color:#64748b;margin-top:4px">Connecting...</div>
     </div>
     <div id="term-error" style="display:none;align-items:center;justify-content:center;height:100%;color:#ff7b72;font-size:14px;gap:8px;flex-direction:column;padding:20px;text-align:center">
       <i class="fas fa-exclamation-triangle" style="font-size:24px"></i>
-      <div id="term-error-msg" style="font-weight:600">Failed to load terminal</div>
-      <div style="font-size:13px;color:#8b949e">Check your internet connection or try a different browser.</div>
+      <div id="term-error-msg" style="font-weight:600">Failed to connect</div>
+      <div style="font-size:13px;color:#8b949e"><?= htmlspecialchars($ip_addr ?? '') ?>:8023</div>
       <button onclick="location.reload()" class="btn btn-p btn-s" style="margin-top:8px">Retry</button>
     </div>
   </div>
 </div>
+
+<?php
+$wsToken = bin2hex(random_bytes(16));
+$wsTokenFile = sys_get_temp_dir() . '/ws_' . session_id() . '.token';
+@file_put_contents($wsTokenFile, $wsToken);
+@chmod($wsTokenFile, 0600);
+$wsHost = $ip_addr ?? '127.0.0.1';
+?>
 
 <script>
 (function() {
@@ -22,15 +30,15 @@
   setVh();
   window.addEventListener('resize', setVh);
 
+  var WS_HOST = '<?= htmlspecialchars($wsHost) ?>';
+  var WS_PORT = 8023;
+  var WS_TOKEN = '<?= htmlspecialchars($wsToken) ?>';
+  var SID = '<?= htmlspecialchars(session_id()) ?>';
   var CSRF_TOKEN = '<?= htmlspecialchars($csrf_token ?? '') ?>';
   var term = null;
   var fitAddon = null;
-  var prompt = '';
-  var inputLine = '';
-  var cursorPos = 0;
-  var cmdHistory = [];
-  var historyIdx = -1;
-  var savedInput = '';
+  var ws = null;
+  var wsReconnectTimer = null;
   var scriptsLoaded = { xterm: false, fit: false };
   var initCalled = false;
 
@@ -48,76 +56,70 @@
     }
   }
 
-  function postData(data) {
-    data.csrf_token = CSRF_TOKEN;
-    var parts = [];
-    for (var k in data) {
-      parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
-    }
-    return fetch('panel/ssh_exec.php', {
+  function setLoading(msg) {
+    if (termLoading) termLoading.textContent = msg;
+  }
+
+  function startWsServer(cb) {
+    setLoading('Starting terminal server...');
+    fetch('panel/ssh_exec.php', {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: parts.join('&')
-    }).then(function(r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    });
-  }
-
-  function pollOutput(runId, offset, termWrite, cb) {
-    var timeout = 30000;
-    var startTime = Date.now();
-    function poll() {
-      if (Date.now() - startTime > timeout) {
-        cb(new Error('Command timed out'));
-        return;
-      }
-      postData({action: 'poll', run_id: runId, offset: offset}).then(function(r) {
-        if (r.output) {
-          termWrite(r.output.replace(/\n/g, '\r\n'));
-          offset = r.offset;
-        }
-        if (r.done) {
-          cb(null, offset);
-        } else {
-          setTimeout(poll, 120);
-        }
-      }).catch(function(e) {
-        cb(e);
-      });
-    }
-    poll();
-  }
-
-  function doExec(cmd) {
-    if (cmd.trim()) {
-      cmdHistory.push(cmd);
-    }
-    historyIdx = cmdHistory.length;
-    savedInput = '';
-    inputLine = '';
-    cursorPos = 0;
-    term.write('\r\n$ ' + cmd + '\r\n');
-    postData({action: 'start', cmd: cmd}).then(function(r) {
-      if (r.run_id && !r.done) {
-        var termWrite = function(text) { term.write(text); };
-        pollOutput(r.run_id, 0, termWrite, function(err, offset) {
-          if (err) {
-            term.writeln('\x1b[31mError: ' + err.message + '\x1b[0m');
-          }
-          prompt = r.prompt;
-          term.write(prompt);
-        });
-      } else {
-        if (r.output) term.write(r.output.replace(/\n/g, '\r\n'));
-        if (r.output && !r.output.endsWith('\n')) term.writeln('');
-        prompt = r.prompt;
-        term.write(prompt);
-      }
+      body: 'action=start_ws&csrf_token=' + encodeURIComponent(CSRF_TOKEN)
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      cb(data.ok);
     }).catch(function() {
-      term.writeln('\x1b[31mError executing command\x1b[0m');
-      term.write(prompt);
+      cb(false);
     });
+  }
+
+  function connectWs() {
+    if (ws) {
+      try { ws.close(); } catch(e) {}
+      ws = null;
+    }
+    var url = 'ws://' + WS_HOST + ':' + WS_PORT + '/?token=' + WS_TOKEN + '&sid=' + encodeURIComponent(SID);
+    setLoading('Connecting...');
+    try {
+      ws = new WebSocket(url);
+    } catch(e) {
+      setLoading('Connection failed. Starting server...');
+      startWsServer(function(ok) {
+        if (!ok) { showError('Failed to start terminal server'); return; }
+        setTimeout(function() {
+          try {
+            ws = new WebSocket(url);
+            bindWs();
+          } catch(e) { showError('Connection failed: ' + e.message); }
+        }, 500);
+      });
+      return;
+    }
+    bindWs();
+  }
+
+  function bindWs() {
+    if (!ws) return;
+    ws.onopen = function() {
+      setLoading('Connected');
+      if (term) {
+        term.focus();
+        if (fitAddon) setTimeout(function() { try { fitAddon.fit(); } catch(e) {} }, 50);
+      }
+    };
+    ws.onmessage = function(ev) {
+      if (term) {
+        term.write(ev.data);
+      }
+    };
+    ws.onerror = function() {
+      setLoading('Connection error');
+    };
+    ws.onclose = function() {
+      if (term) {
+        term.writeln('\r\n\x1b[31mConnection closed\x1b[0m');
+      }
+    };
   }
 
   function initTerminal() {
@@ -151,93 +153,13 @@
       setTimeout(function() { try { fitAddon.fit(); } catch(e) {} }, 50);
       window.addEventListener('resize', function() { if (fitAddon) { try { fitAddon.fit(); } catch(e) {} } });
 
-      postData({action: 'start', cmd: ''}).then(function(r) {
-        prompt = r.prompt;
-        term.write(prompt);
-        var autoCmd = new URLSearchParams(window.location.search).get('cmd');
-        if (autoCmd) doExec(autoCmd);
-      }).catch(function() {
-        term.writeln('\x1b[31mWarning: shell unavailable, but terminal is ready\x1b[0m');
-        prompt = '\x1b[32m$\x1b[0m ';
-        term.write(prompt);
-      });
-
-      term.attachCustomKeyEventHandler(function(ev) {
-        if (ev.type !== 'keydown') return true;
-        if (ev.ctrlKey && ev.key === 'c') {
-          if (term.hasSelection()) {
-            document.execCommand('copy');
-            term.clearSelection();
-            return false;
-          }
-          return true;
-        }
-        return true;
-      });
-
-      if (typeof term.onData === 'function') {
-        term.onData(function(text) {
-          if (text.length > 1) {
-            inputLine += text;
-            cursorPos += text.length;
-            term.write(text);
-          }
-        });
-      }
-
-      term.onKey(function(e) {
-        var ev = e.domEvent;
-        if (ev.altKey || ev.ctrlKey || ev.metaKey) {
-          if (ev.ctrlKey && ev.key === 'c' && !term.hasSelection()) {
-            inputLine = '';
-            cursorPos = 0;
-            term.writeln('^C');
-            term.write(prompt);
-          }
-          return;
-        }
-        if (ev.key === 'ArrowUp') {
-          if (cmdHistory.length === 0) return;
-          if (historyIdx === cmdHistory.length) savedInput = inputLine;
-          if (historyIdx > 0) {
-            historyIdx--;
-            var prev = cmdHistory[historyIdx];
-            term.write('\r' + prompt + ' '.repeat(inputLine.length) + '\r' + prompt + prev);
-            inputLine = prev;
-            cursorPos = prev.length;
-          }
-          return;
-        }
-        if (ev.key === 'ArrowDown') {
-          if (historyIdx === cmdHistory.length) return;
-          historyIdx++;
-          var next = historyIdx < cmdHistory.length ? cmdHistory[historyIdx] : savedInput;
-          term.write('\r' + prompt + ' '.repeat(inputLine.length) + '\r' + prompt + next);
-          inputLine = next;
-          cursorPos = next.length;
-          return;
-        }
-        if (ev.key === 'Enter') {
-          if (inputLine.trim() === '') {
-            term.writeln('');
-            term.write(prompt);
-            return;
-          }
-          term.writeln('');
-          var cmd = inputLine;
-          doExec(cmd);
-        } else if (ev.key === 'Backspace') {
-          if (cursorPos > 0) {
-            inputLine = inputLine.slice(0, -1);
-            cursorPos--;
-            term.write('\b \b');
-          }
-        } else if (ev.key.length === 1) {
-          inputLine += ev.key;
-          cursorPos++;
-          term.write(ev.key);
+      term.onData(function(data) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
         }
       });
+
+      connectWs();
     } catch (e) {
       showError('Terminal error: ' + e.message);
     }

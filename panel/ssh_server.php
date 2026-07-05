@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 $home = getenv('HOME') ?: '/data/data/com.termux/files/home';
-$host = '127.0.0.1';
+$host = '0.0.0.0';
 $port = 8023;
 $pidFile = $home . '/server/.ssh_ws.pid';
 $logFile = $home . '/server/logs/ssh_ws.log';
@@ -10,8 +10,9 @@ $logFile = $home . '/server/logs/ssh_ws.log';
 
 if (@is_file($pidFile)) {
     $pid = (int)trim(@file_get_contents($pidFile));
-    if ($pid > 0 && @file_exists("/proc/$pid")) {
-        exit(0);
+    if ($pid > 0) {
+        exec("kill -0 $pid 2>/dev/null", $null, $rc);
+        if ($rc === 0) exit(0);
     }
 }
 
@@ -46,7 +47,7 @@ while (true) {
         $client = @stream_socket_accept($server, 0);
         if ($client) {
             stream_set_blocking($client, false);
-            $clients[(int)$client] = ['socket' => $client, 'handshake' => false, 'buf' => ''];
+            $clients[(int)$client] = ['socket' => $client, 'handshake' => false, 'buf' => '', 'authed' => false];
         }
     }
 
@@ -66,8 +67,32 @@ while (true) {
         if (!$c['handshake']) {
             $c['buf'] .= $data;
             if (strpos($c['buf'], "\r\n\r\n") !== false) {
+                $authOk = false;
                 if (preg_match('/Sec-WebSocket-Key:\s(.+)\r\n/i', $c['buf'], $m)) {
                     $key = trim($m[1]);
+                    $token = '';
+                    if (preg_match('/[?&]token=([a-f0-9]+)/i', $c['buf'], $tm)) {
+                        $token = $tm[1];
+                    }
+                    if (preg_match('/[?&]sid=([a-zA-Z0-9,-]+)/i', $c['buf'], $sm)) {
+                        $sid = $sm[1];
+                        $tokenFile = sys_get_temp_dir() . '/ws_' . $sid . '.token';
+                        if (is_file($tokenFile)) {
+                            $stored = trim(@file_get_contents($tokenFile));
+                            if ($stored && $stored === $token) {
+                                $authOk = true;
+                                @unlink($tokenFile);
+                            } else {
+                                @unlink($tokenFile);
+                            }
+                        }
+                    }
+                    if (!$authOk) {
+                        $resp = "HTTP/1.1 403 Forbidden\r\n\r\n";
+                        fwrite($sock, $resp);
+                        cleanup($id, $clients, $processes);
+                        continue;
+                    }
                     $accept = base64_encode(sha1($key . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', true));
                     $resp = "HTTP/1.1 101 Switching Protocols\r\n"
                         . "Upgrade: websocket\r\n"
@@ -90,7 +115,6 @@ while (true) {
                 fwrite($sock, encodeFrame($frame['payload'], 0xA));
             } elseif ($frame['opcode'] === 1 && isset($processes[$id])) {
                 $input = $frame['payload'];
-                if ($input === "\x01RESIZE") continue;
                 @fwrite($processes[$id]['stdin'], $input);
                 @fflush($processes[$id]['stdin']);
             }

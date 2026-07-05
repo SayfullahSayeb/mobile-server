@@ -92,6 +92,33 @@ if ($action === 'start') {
     exit;
 }
 
+if ($action === 'start_ws') {
+    $home = getenv('HOME') ?: '/data/data/com.termux/files/home';
+    $wsPidFile = $home . '/server/.ssh_ws.pid';
+    if (is_file($wsPidFile)) {
+        $wsPid = (int)trim(@file_get_contents($wsPidFile));
+        if ($wsPid > 0) {
+            exec("kill -0 $wsPid 2>/dev/null", $null, $rc);
+            if ($rc === 0) {
+                header('Content-Type: application/json');
+                echo json_encode(['ok' => true, 'running' => true]);
+                exit;
+            }
+        }
+    }
+    $wsScript = __DIR__ . '/ssh_server.php';
+    if (is_file($wsScript)) {
+        exec("php " . escapeshellarg($wsScript) . " > /dev/null 2>&1 &");
+        usleep(300000);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true, 'running' => false]);
+        exit;
+    }
+    header('Content-Type: application/json');
+    echo json_encode(['ok' => false, 'error' => 'Server script not found']);
+    exit;
+}
+
 if ($action === 'poll') {
     $runId = $_POST['run_id'] ?? '';
     $offset = (int)($_POST['offset'] ?? 0);
