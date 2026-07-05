@@ -48,15 +48,20 @@ $mem_str = $mem_total > 0
     ? number_format(($mem_total - $mem_avail) / 1024) . "MiB / " . number_format($mem_total / 1024) . "MiB"
     : 'N/A';
 
+$uptime_str = 'N/A';
 $uptime_ts = @file_get_contents('/proc/uptime');
-$up_d = $up_h = $up_m = 0;
 if ($uptime_ts !== false) {
     $secs = (float)strtok($uptime_ts, " \t");
-    $up_d = floor($secs / 86400);
-    $up_h = floor(($secs % 86400) / 3600);
-    $up_m = floor(($secs % 3600) / 60);
+    if ($secs > 0) {
+        $up_d = floor($secs / 86400);
+        $up_h = floor(($secs % 86400) / 3600);
+        $up_m = floor(($secs % 3600) / 60);
+        $uptime_str = ($up_d > 0 ? "{$up_d}d " : '') . "{$up_h}h {$up_m}m";
+    }
 }
-$uptime_str = ($up_d > 0 ? "{$up_d}d " : '') . "{$up_h}h {$up_m}m";
+if ($uptime_str === 'N/A') {
+    $uptime_str = trim((string)(@shell_exec('uptime -p 2>/dev/null') ?: 'N/A'));
+}
 
 $disk_total = @disk_total_space(HOME_DIR);
 $disk_free = @disk_free_space(HOME_DIR);
@@ -87,27 +92,6 @@ foreach ($combined as $line) {
     if ($section === 'c') $cloudflared_ver_s = $v;
 }
 
-// Battery
-$battery = 'N/A';
-foreach (['/sys/class/power_supply/battery/capacity','/sys/class/power_supply/BAT0/capacity','/sys/class/power_supply/BAT1/capacity'] as $bp) {
-    $bat = @file_get_contents($bp);
-    if ($bat !== false) {
-        $bat_pct = (int)trim($bat);
-        $bat_st = trim((string)(@file_get_contents(dirname($bp) . '/status') ?: 'Unknown'));
-        $battery = "$bat_pct% (" . strtolower($bat_st) . ")";
-        break;
-    }
-}
-if ($battery === 'N/A') {
-    $bat_json = trim((string)(@shell_exec($tos . 'termux-battery-status 2>/dev/null') ?: ''));
-    if ($bat_json) {
-        $bat_data = json_decode($bat_json, true);
-        if ($bat_data && isset($bat_data['percentage'])) {
-            $battery = $bat_data['percentage'] . '%' . (isset($bat_data['status']) ? ' (' . strtolower($bat_data['status']) . ')' : '');
-        }
-    }
-}
-
 $host = $hostname ?: gethostname();
 $device = trim("$device_man $device_model") ?: 'N/A';
 $os_str = "Android $os" . ($os_codename ? " ($os_codename)" : '');
@@ -125,7 +109,6 @@ $data = [
     'CPU' => $cpu . ($cores ? " ($cores cores)" : ''),
     'Memory' => $mem_str,
     'Disk' => $disk_s,
-    'Battery' => $battery,
     'Local IP' => $ip_local,
     'PHP' => $php_ver,
     'PHP-FPM' => $phpfpm_ver_s,
