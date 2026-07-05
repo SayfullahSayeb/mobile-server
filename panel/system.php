@@ -1,7 +1,10 @@
 <div class="sec" style="padding:24px">
 <?php
-@set_time_limit(10);
-$tos = 'timeout 3 ';
+@set_time_limit(5);
+
+$tos = 'timeout 2 ';
+
+// ---- fast data: /proc files + getprop (no subprocesses) ----
 $os = trim((string)(@shell_exec($tos . 'getprop ro.build.version.release 2>/dev/null') ?: 'Android'));
 $os_codename = trim((string)(@shell_exec($tos . 'getprop ro.build.version.codename 2>/dev/null') ?: ''));
 $os_sdk = trim((string)(@shell_exec($tos . 'getprop ro.build.version.sdk 2>/dev/null') ?: ''));
@@ -9,34 +12,18 @@ $device_man = trim((string)(@shell_exec($tos . 'getprop ro.product.manufacturer 
 $device_model = trim((string)(@shell_exec($tos . 'getprop ro.product.model 2>/dev/null') ?: ''));
 $kernel = trim((string)(@shell_exec($tos . 'uname -r 2>/dev/null') ?: 'N/A'));
 $arch = trim((string)(@shell_exec($tos . 'uname -m 2>/dev/null') ?: 'N/A'));
-$shell = getenv('SHELL') ?: trim((string)(@shell_exec($tos . 'echo $SHELL 2>/dev/null') ?: 'bash'));
-$terminal = getenv('TERM') ?: trim((string)(@shell_exec($tos . 'echo $TERM 2>/dev/null') ?: 'xterm'));
 
-$pkg_count = trim((string)(@shell_exec($tos . 'dpkg --get-selections 2>/dev/null | grep -v deinstall | wc -l') ?: ''));
-if (!$pkg_count || $pkg_count === '0') {
-    $pkg_count = trim((string)(@shell_exec($tos . 'pkg list-installed 2>/dev/null | wc -l') ?: '?'));
-}
-
+// CPU from /proc/cpuinfo
 $cpu_raw = @file_get_contents('/proc/cpuinfo');
-$cpu = 'N/A';
-$cores = 0;
+$cpu = 'N/A'; $cores = 0;
 if ($cpu_raw) {
-    preg_match('/^model name\s+:\s+(.+)$/m', $cpu_raw, $m);
-    $cpu = $m[1] ?? '';
+    preg_match('/^model name\s+:\s+(.+)$/m', $cpu_raw, $m) ?: preg_match('/^Hardware\s+:\s+(.+)$/m', $cpu_raw, $m);
+    $cpu = $m[1] ?? 'N/A';
     preg_match_all('/^processor\s+:\s+\d+$/m', $cpu_raw, $c);
     $cores = count($c[0] ?? []);
-    if (!$cpu) {
-        preg_match('/^Hardware\s+:\s+(.+)$/m', $cpu_raw, $m2);
-        $cpu = $m2[1] ?? '';
-    }
-    if (!$cpu) {
-        preg_match('/^CPU implementer\s+:\s+(.+)$/m', $cpu_raw, $m3);
-        preg_match('/^CPU part\s+:\s+(.+)$/m', $cpu_raw, $m4);
-        if ($m3 && $m4) $cpu = trim($m3[1]) . ':' . trim($m4[1]);
-    }
-    if (!$cpu) $cpu = 'N/A';
 }
 
+// Memory from /proc/meminfo
 $mem = @file_get_contents('/proc/meminfo');
 $mem_total = 0; $mem_avail = 0;
 if ($mem) {
@@ -45,39 +32,86 @@ if ($mem) {
     $mem_total = (int)($mt[1] ?? 0);
     $mem_avail = (int)($ma[1] ?? 0);
 }
-$mem_used_kb = $mem_total - $mem_avail;
-$mem_str = $mem_total > 0 ? number_format($mem_used_kb / 1024) . "MiB / " . number_format($mem_total / 1024) . "MiB" : 'N/A';
+$mem_str = $mem_total > 0 ? number_format(($mem_total - $mem_avail) / 1024) . "MiB / " . number_format($mem_total / 1024) . "MiB" : 'N/A';
 
-$uptime_ts = trim((string)(@shell_exec($tos . 'cat /proc/uptime 2>/dev/null | awk \'{print $1}\'') ?: '0'));
-$up_d = (float)$uptime_ts > 0 ? floor((float)$uptime_ts / 86400) : 0;
-$up_h = (float)$uptime_ts > 0 ? floor(((float)$uptime_ts % 86400) / 3600) : 0;
-$up_m = (float)$uptime_ts > 0 ? floor(((float)$uptime_ts % 3600) / 60) : 0;
+// Uptime from /proc/uptime
+$uptime_ts = @file_get_contents('/proc/uptime');
+$up_d = 0; $up_h = 0; $up_m = 0;
+if ($uptime_ts !== false) {
+    $secs = (float)strtok($uptime_ts, " \t");
+    $up_d = floor($secs / 86400);
+    $up_h = floor(($secs % 86400) / 3600);
+    $up_m = floor(($secs % 3600) / 60);
+}
 $uptime_str = ($up_d > 0 ? "{$up_d}d " : '') . "{$up_h}h {$up_m}m";
-if (!$uptime_ts || $uptime_ts === '0' || $uptime_ts === '0.00') {
+if (!$uptime_ts || $uptime_ts === '0.00') {
     $up_raw = trim((string)(@shell_exec($tos . 'uptime -p 2>/dev/null') ?: ''));
     if ($up_raw) $uptime_str = preg_replace('/^up\s+/', '', $up_raw);
 }
 
+// Disk (PHP built-in, fast)
 $disk_total = @disk_total_space(HOME_DIR);
 $disk_free = @disk_free_space(HOME_DIR);
 $disk_s = 'N/A';
 if ($disk_total > 0) {
-    $disk_used = $disk_total - $disk_free;
-    $disk_s = number_format($disk_used / 1073741824, 1) . "G / " . number_format($disk_total / 1073741824, 1) . "G";
+    $disk_s = number_format(($disk_total - $disk_free) / 1073741824, 1) . "G / " . number_format($disk_total / 1073741824, 1) . "G";
 }
 
+// ---- single exec call for everything that needs a subprocess ----
+$combined = '';
+exec($tos . 'dpkg -l 2>/dev/null | wc -l; '
+    . 'echo SHELL; echo $SHELL; '
+    . 'echo TERM; echo $TERM; '
+    . 'echo NGINX; nginx -v 2>&1; '
+    . 'echo PHPFPM; php-fpm -v 2>&1 | head -1; '
+    . 'echo MARIADB; mariadb --version 2>&1 | head -1; '
+    . 'echo CF; cloudflared --version 2>&1 | head -1; '
+    . 'echo PUBLICIP; curl -s --max-time 2 ifconfig.me 2>/dev/null || curl -s --max-time 2 icanhazip.com 2>/dev/null', $rawCombined, $rcCombined);
+
+$shell = getenv('SHELL') ?: 'bash';
+$terminal = getenv('TERM') ?: 'xterm';
+$pkg_count = '?';
+$nginx_ver_s = 'N/A';
+$phpfpm_ver_s = 'N/A';
+$mariadb_ver_s = 'N/A';
+$cloudflared_ver_s = 'N/A';
+$ip_public = '';
+
+$section = '';
+foreach ($rawCombined as $line) {
+    if ($line === 'SHELL') { $section = 'SHELL'; continue; }
+    if ($line === 'TERM') { $section = 'TERM'; continue; }
+    if ($line === 'NGINX') { $section = 'NGINX'; continue; }
+    if ($line === 'PHPFPM') { $section = 'PHPFPM'; continue; }
+    if ($line === 'MARIADB') { $section = 'MARIADB'; continue; }
+    if ($line === 'CF') { $section = 'CF'; continue; }
+    if ($line === 'PUBLICIP') { $section = 'PUBLICIP'; continue; }
+    if ($section === '') {
+        $pkg_count = $line;
+    } elseif ($section === 'SHELL') {
+        $shell = $line;
+    } elseif ($section === 'TERM') {
+        $terminal = $line;
+    } elseif ($section === 'NGINX') {
+        $nginx_ver_s = preg_match('/(\d+\.\d+[\.\d]*)/', $line, $m) ? $m[1] : $line;
+    } elseif ($section === 'PHPFPM') {
+        $phpfpm_ver_s = preg_match('/(\d+\.\d+[\.\d]*)/', $line, $m) ? $m[1] : $line;
+    } elseif ($section === 'MARIADB') {
+        $mariadb_ver_s = preg_match('/(\d+\.\d+[\.\d]*)/', $line, $m) ? $m[1] : $line;
+    } elseif ($section === 'CF') {
+        $cloudflared_ver_s = preg_match('/(\d+\.\d+[\.\d]*)/', $line, $m) ? $m[1] : $line;
+    } elseif ($section === 'PUBLICIP') {
+        if (filter_var($line, FILTER_VALIDATE_IP)) $ip_public = $line;
+    }
+}
+
+// Battery (sysfs first, fallback termux-battery-status)
 $battery = 'N/A';
-$bat_paths = [
-    '/sys/class/power_supply/battery/capacity',
-    '/sys/class/power_supply/BAT0/capacity',
-    '/sys/class/power_supply/BAT1/capacity',
-];
-foreach ($bat_paths as $bp) {
+foreach (['/sys/class/power_supply/battery/capacity','/sys/class/power_supply/BAT0/capacity','/sys/class/power_supply/BAT1/capacity'] as $bp) {
     $bat = @file_get_contents($bp);
     if ($bat !== false) {
         $bat_pct = (int)trim($bat);
-        $bat_dir = dirname($bp);
-        $bat_st = trim((string)(@file_get_contents($bat_dir . '/status') ?: 'Unknown'));
+        $bat_st = trim((string)(@file_get_contents(dirname($bp) . '/status') ?: 'Unknown'));
         $battery = "$bat_pct% (" . strtolower($bat_st) . ")";
         break;
     }
@@ -92,30 +126,12 @@ if ($battery === 'N/A') {
     }
 }
 
-$ip_local = $ip_addr ?? '127.0.0.1';
-$ip_public = trim((string)(@shell_exec($tos . 'curl -s ifconfig.me 2>/dev/null') ?: ''));
-if (!$ip_public) {
-    $ip_public = trim((string)(@shell_exec($tos . 'curl -s icanhazip.com 2>/dev/null') ?: ''));
-}
-
+// ---- display ----
 $host = $hostname ?: gethostname();
 $device = trim("$device_man $device_model") ?: 'N/A';
 $os_str = "Android $os" . ($os_codename ? " ($os_codename)" : '');
-$nginx_ver = trim((string)(@shell_exec($tos . 'nginx -v 2>&1') ?: 'N/A'));
-$phpfpm_ver = trim((string)(@shell_exec($tos . 'php-fpm -v 2>&1 | head -1') ?: ''));
-$mariadb_ver = trim((string)(@shell_exec($tos . 'mariadb --version 2>&1 | head -1') ?: ''));
-$cloudflared_ver = trim((string)(@shell_exec($tos . 'cloudflared --version 2>&1 | head -1') ?: ''));
-
-$extract_ver = function($raw) {
-    if (!$raw || $raw === 'N/A') return 'N/A';
-    if (preg_match('/(\d+\.\d+[\.\d]*)/', $raw, $m)) return $m[1];
-    return $raw;
-};
 $php_ver = PHP_VERSION;
-$nginx_ver_s = $extract_ver($nginx_ver);
-$phpfpm_ver_s = $extract_ver($phpfpm_ver);
-$mariadb_ver_s = $extract_ver($mariadb_ver);
-$cloudflared_ver_s = $extract_ver($cloudflared_ver);
+$ip_local = $ip_addr ?? '127.0.0.1';
 
 $art = [
     '           .---.',

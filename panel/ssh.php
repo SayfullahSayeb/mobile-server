@@ -1,149 +1,63 @@
 <?php $csrf = $_SESSION['csrf_token'] ?? ''; ?>
-
 <style>
-*{box-sizing:border-box}
-#term-wrap{background:#0d1117;display:flex;flex-direction:column;height:100%;font-family:'SF Mono','Fira Code','Cascadia Code',Consolas,monospace;font-size:15px}
-#term-out{flex:1;overflow-y:auto;padding:10px;color:#c9d1d9;white-space:pre-wrap;word-break:break-all;line-height:1.5;scrollbar-width:thin;scrollbar-color:#30363d transparent}
-#term-out::-webkit-scrollbar{width:6px}
-#term-out::-webkit-scrollbar-thumb{background:#30363d;border-radius:3px}
-.term-line{padding:0;min-height:1.2em}
-.term-line.err{color:#ff7b72}
-.term-inp-row{display:flex;align-items:center;padding:6px 10px;background:#161b22;border-top:1px solid #30363d}
-.term-prompt{color:#3fb950;white-space:pre;user-select:none;flex-shrink:0}
-.term-inp{flex:1;background:transparent;border:none;outline:none;color:#c9d1d9;font:inherit;caret-color:#c9d1d9;margin-left:2px}
-.term-inp::placeholder{color:#484f58}
+#sh-wrap{background:#0d1117;height:100%;display:flex;flex-direction:column;font-family:monospace;font-size:16px}
+#sh-out{flex:1;overflow-y:auto;padding:10px;color:#c9d1d9;white-space:pre-wrap;font-size:15px;line-height:1.5}
+#sh-inp{display:flex;padding:8px 10px;background:#161b22;border-top:1px solid #30363d;align-items:center}
+#sh-prompt{color:#3fb950;white-space:pre;margin-right:4px}
+#sh-cmd{flex:1;background:transparent;border:none;outline:none;color:#c9d1d9;font:inherit}
 </style>
-<div class="sec" style="padding:0;overflow:hidden;height:calc(100vh - 140px);min-height:300px;display:flex;flex-direction:column">
-  <div id="term-wrap">
-    <div id="term-out"></div>
-    <div class="term-inp-row">
-      <span class="term-prompt" id="term-prompt">$ </span>
-      <input class="term-inp" id="term-inp" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type a command...">
-    </div>
-  </div>
+<div class="sec" style="padding:0;overflow:hidden;height:calc(100vh - 140px);min-height:300px">
+<div id="sh-wrap">
+<div id="sh-out"></div>
+<div id="sh-inp">
+<span id="sh-prompt">$ </span>
+<input id="sh-cmd" type="text" autocomplete="off" spellcheck="false" placeholder="command">
 </div>
-
+</div></div>
 <script>
-(function() {
-  var CSRF = '<?= htmlspecialchars($csrf) ?>';
-  var out = document.getElementById('term-out');
-  var inp = document.getElementById('term-inp');
-  var promptEl = document.getElementById('term-prompt');
-  var promptText = '$ ';
-  var history = [];
-  var histIdx = -1;
-  var busy = false;
+(function(){
+var CSRF='<?= htmlspecialchars($csrf) ?>';
+var out=document.getElementById('sh-out');
+var inp=document.getElementById('sh-cmd');
+var promptEl=document.getElementById('sh-prompt');
+var busy=false;
 
-  function ansiToHtml(s) {
-    var map = {
-      '0':'','1':'font-weight:bold','3':'font-style:italic','4':'text-decoration:underline',
-      '30':'color:#484f58','31':'color:#ff7b72','32':'color:#3fb950','33':'color:#d29922',
-      '34':'color:#58a6ff','35':'color:#bc8cff','36':'color:#39c5cf','37':'color:#b1bac4',
-      '90':'color:#6e7681','91':'color:#ffa198','92':'color:#56d364','93':'color:#e3b341',
-      '94':'color:#79c0ff','95':'color:#d2a8ff','96':'color:#56d4dd','97':'color:#f0f6fc',
-    };
-    return s.replace(/\x1b\[([0-9;]*)m/g, function(_, c) {
-      if (!c) return '</span>';
-      var styles = c.split(';').map(function(n) { return map[n] || ''; }).filter(Boolean).join(';');
-      return styles ? '<span style="' + styles + '">' : '</span>';
-    }).replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+function addLine(text,cls){
+ if(!text)return;
+ var d=document.createElement('div');
+ d.textContent=text;
+ d.style.cssText='padding:1px 0'+(cls?';color:'+cls:'');
+ out.appendChild(d);
+ out.scrollTop=out.scrollHeight;
+}
+
+function submit(){
+ var cmd=inp.value;
+ if(!cmd.trim()){inp.value='';return;}
+ busy=true;inp.disabled=true;
+ addLine('$ '+cmd,'#8b949e');
+
+ var x=new XMLHttpRequest();
+ x.open('POST','panel/ssh_exec.php',true);
+ x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+ x.responseType='json';
+ x.onload=function(){
+  if(x.status===200&&x.response){
+   addLine(x.response.output||'(no output)');
+   if(x.response.prompt)promptEl.textContent=x.response.prompt.replace(/\x1b\[[0-9;]*[a-zA-Z]/g,'');
+  }else{
+   addLine('Error: HTTP '+x.status,'#ff7b72');
   }
+  inp.value='';inp.disabled=false;busy=false;inp.focus();
+ };
+ x.onerror=function(){addLine('Network error','#ff7b72');inp.value='';inp.disabled=false;busy=false;inp.focus();};
+ x.send('cmd='+encodeURIComponent(cmd)+'&csrf_token='+encodeURIComponent(CSRF));
+}
 
-  function write(text, cls) {
-    if (!text) return;
-    var lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-    for (var i = 0; i < lines.length; i++) {
-      var d = document.createElement('div');
-      d.className = 'term-line' + (cls ? ' ' + cls : '');
-      d.innerHTML = ansiToHtml(lines[i]) || '\u00A0';
-      out.appendChild(d);
-    }
-    out.scrollTop = out.scrollHeight;
-  }
-
-  function setPrompt(p) {
-    promptText = p || '$ ';
-    promptEl.textContent = promptText.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
-  }
-
-  function submit() {
-    var cmd = inp.value;
-    if (!cmd.trim()) { inp.value = ''; return; }
-    if (cmd.trim()) {
-      history.push(cmd);
-      if (history.length > 500) history.shift();
-    }
-    histIdx = -1;
-    busy = true;
-    inp.disabled = true;
-
-    write(promptText + cmd);
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', 'panel/ssh_exec.php', true);
-    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr.responseType = 'json';
-    xhr.onload = function() {
-      if (xhr.status === 200 && xhr.response) {
-        write(xhr.response.output || '');
-        setPrompt(xhr.response.prompt);
-      } else {
-        write('Error: HTTP ' + xhr.status, 'err');
-      }
-      inp.value = '';
-      inp.disabled = false;
-      busy = false;
-      inp.focus();
-    };
-    xhr.onerror = function() {
-      write('Network error', 'err');
-      inp.value = '';
-      inp.disabled = false;
-      busy = false;
-      inp.focus();
-    };
-    xhr.timeout = 60000;
-    xhr.ontimeout = function() {
-      write('Command timed out (60s)', 'err');
-      inp.value = '';
-      inp.disabled = false;
-      busy = false;
-      inp.focus();
-    };
-    xhr.send('cmd=' + encodeURIComponent(cmd) + '&csrf_token=' + encodeURIComponent(CSRF));
-  }
-
-  inp.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (!busy) submit();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (history.length === 0) return;
-      if (histIdx === -1) histIdx = history.length - 1;
-      else if (histIdx > 0) histIdx--;
-      else return;
-      inp.value = history[histIdx];
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (histIdx === -1) return;
-      histIdx++;
-      if (histIdx >= history.length) { histIdx = -1; inp.value = ''; return; }
-      inp.value = history[histIdx];
-    } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
-      if (busy) {
-        busy = false;
-        inp.disabled = false;
-      }
-      inp.value = '';
-    } else if (e.key === 'l' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      out.innerHTML = '';
-    }
-  });
-
-  // click terminal → focus input
-  out.addEventListener('click', function() { inp.focus(); });
-  inp.focus();
+inp.addEventListener('keydown',function(e){
+ if(e.key==='Enter'&&!busy){e.preventDefault();submit();}
+ if(e.key==='c'&&(e.ctrlKey||e.metaKey)){busy=false;inp.disabled=false;inp.value='';}
+});
+inp.focus();
 })();
 </script>

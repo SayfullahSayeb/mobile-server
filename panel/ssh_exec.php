@@ -1,85 +1,27 @@
 <?php
-declare(strict_types=1);
-
 putenv('PATH=/data/data/com.termux/files/usr/bin:' . getenv('PATH'));
-
 session_start();
 
+header('Content-Type: application/json');
+
 if (empty($_SESSION['authenticated'])) {
-    http_response_code(401);
-    header('Content-Type: application/json');
-    echo json_encode(['output' => 'Unauthorized', 'prompt' => '']);
+    echo json_encode(['ok' => false, 'output' => 'Auth failed']);
     exit;
-}
-
-$token = $_POST['csrf_token'] ?? '';
-if (empty($token) || !hash_equals($_SESSION['csrf_token'] ?? '', $token)) {
-    http_response_code(419);
-    header('Content-Type: application/json');
-    echo json_encode(['output' => 'Invalid token', 'prompt' => '']);
-    exit;
-}
-
-error_reporting(E_ALL);
-ini_set('display_errors', '0');
-
-$home = getenv('HOME') ?: '/data/data/com.termux/files/home';
-
-if (!isset($_SESSION['ssh_cwd'])) {
-    $_SESSION['ssh_cwd'] = $home;
-}
-if (!isset($_SESSION['ssh_prev_cwd'])) {
-    $_SESSION['ssh_prev_cwd'] = $home;
 }
 
 $cmd = trim($_POST['cmd'] ?? '');
-$output = '';
-$newCwd = $_SESSION['ssh_cwd'];
-
-if ($cmd === '') {
-    // just prompt
-
-} elseif ($cmd === 'cd' || preg_match('/^\s*cd\s+~?\s*$/', $cmd)) {
-    $_SESSION['ssh_prev_cwd'] = $_SESSION['ssh_cwd'];
-    $_SESSION['ssh_cwd'] = $home;
-    $newCwd = $home;
-
-} elseif (preg_match('/^\s*cd\s+([^\s&|;><`\'"$()!#*?\[\]{}]+)\s*$/', $cmd, $m)) {
-    $target = $m[1];
-    if ($target === '~') {
-        $target = $home;
-    } elseif ($target === '-') {
-        $target = $_SESSION['ssh_prev_cwd'] ?? $home;
-    } elseif (strpos($target, '~') === 0) {
-        $target = $home . substr($target, 1);
-    }
-    $absTarget = $target;
-    if (!str_starts_with($target, '/')) {
-        $absTarget = $_SESSION['ssh_cwd'] . '/' . $target;
-    }
-    $absTarget = realpath($absTarget);
-    if ($absTarget !== false && is_dir($absTarget)) {
-        $_SESSION['ssh_prev_cwd'] = $_SESSION['ssh_cwd'];
-        $_SESSION['ssh_cwd'] = $absTarget;
-        $newCwd = $absTarget;
-    } else {
-        $output = "cd: $target: No such directory\n";
-    }
-
-} else {
-    $escapedCwd = escapeshellarg($_SESSION['ssh_cwd']);
-    $fullCmd = "cd $escapedCwd 2>/dev/null; " . $cmd . ' 2>&1';
-    exec($fullCmd, $raw, $rc);
-    $output = implode("\n", $raw);
-    if ($output !== '') {
-        $output .= "\n";
-    }
+if (!$cmd) {
+    echo json_encode(['ok' => true, 'output' => '', 'prompt' => '$ ']);
+    exit;
 }
 
-$user = trim(@exec('whoami') ?: 'u0_aXXX');
-$host = trim(@exec('hostname -s 2>/dev/null') ?: 'localhost');
-$displayDir = str_replace($home, '~', $newCwd);
-$prompt = "\x1b[32m$user@$host\x1b[0m:\x1b[34m$displayDir\x1b[0m$ ";
+$output = '';
+exec($cmd . ' 2>&1', $raw, $rc);
+$output = implode("\n", $raw);
 
-header('Content-Type: application/json');
-echo json_encode(['output' => $output, 'prompt' => $prompt]);
+$user = @exec('whoami') ?: 'user';
+echo json_encode([
+    'ok' => true,
+    'output' => $output,
+    'prompt' => "\033[32m$user\033[0m$ "
+]);
