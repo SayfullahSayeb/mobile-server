@@ -28,6 +28,9 @@
   var prompt = '';
   var inputLine = '';
   var cursorPos = 0;
+  var cmdHistory = [];
+  var historyIdx = -1;
+  var savedInput = '';
   var scriptsLoaded = { xterm: false, fit: false };
   var initCalled = false;
 
@@ -45,14 +48,75 @@
     }
   }
 
-  function execCmd(cmd) {
+  function postData(data) {
+    data.csrf_token = CSRF_TOKEN;
+    var parts = [];
+    for (var k in data) {
+      parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(data[k]));
+    }
     return fetch('panel/ssh_exec.php', {
       method: 'POST',
       headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'cmd=' + encodeURIComponent(cmd) + '&csrf_token=' + encodeURIComponent(CSRF_TOKEN)
+      body: parts.join('&')
     }).then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
+    });
+  }
+
+  function pollOutput(runId, offset, termWrite, cb) {
+    var timeout = 30000;
+    var startTime = Date.now();
+    function poll() {
+      if (Date.now() - startTime > timeout) {
+        cb(new Error('Command timed out'));
+        return;
+      }
+      postData({action: 'poll', run_id: runId, offset: offset}).then(function(r) {
+        if (r.output) {
+          termWrite(r.output.replace(/\n/g, '\r\n'));
+          offset = r.offset;
+        }
+        if (r.done) {
+          cb(null, offset);
+        } else {
+          setTimeout(poll, 120);
+        }
+      }).catch(function(e) {
+        cb(e);
+      });
+    }
+    poll();
+  }
+
+  function doExec(cmd) {
+    if (cmd.trim()) {
+      cmdHistory.push(cmd);
+    }
+    historyIdx = cmdHistory.length;
+    savedInput = '';
+    inputLine = '';
+    cursorPos = 0;
+    term.write('\r\n$ ' + cmd + '\r\n');
+    postData({action: 'start', cmd: cmd}).then(function(r) {
+      if (r.run_id && !r.done) {
+        var termWrite = function(text) { term.write(text); };
+        pollOutput(r.run_id, 0, termWrite, function(err, offset) {
+          if (err) {
+            term.writeln('\x1b[31mError: ' + err.message + '\x1b[0m');
+          }
+          prompt = r.prompt;
+          term.write(prompt);
+        });
+      } else {
+        if (r.output) term.write(r.output.replace(/\n/g, '\r\n'));
+        if (r.output && !r.output.endsWith('\n')) term.writeln('');
+        prompt = r.prompt;
+        term.write(prompt);
+      }
+    }).catch(function() {
+      term.writeln('\x1b[31mError executing command\x1b[0m');
+      term.write(prompt);
     });
   }
 
@@ -87,22 +151,7 @@
       setTimeout(function() { try { fitAddon.fit(); } catch(e) {} }, 50);
       window.addEventListener('resize', function() { if (fitAddon) { try { fitAddon.fit(); } catch(e) {} } });
 
-      function doExec(cmd) {
-        inputLine = '';
-        cursorPos = 0;
-        term.write('\r\n$ ' + cmd + '\r\n');
-        execCmd(cmd).then(function(r) {
-          if (r.output) term.write(r.output.replace(/\n/g, '\r\n'));
-          if (!r.output.endsWith('\n')) term.writeln('');
-          prompt = r.prompt;
-          term.write(prompt);
-        }).catch(function() {
-          term.writeln('\x1b[31mError executing command\x1b[0m');
-          term.write(prompt);
-        });
-      }
-
-      execCmd('').then(function(r) {
+      postData({action: 'start', cmd: ''}).then(function(r) {
         prompt = r.prompt;
         term.write(prompt);
         var autoCmd = new URLSearchParams(window.location.search).get('cmd');
@@ -147,6 +196,27 @@
           }
           return;
         }
+        if (ev.key === 'ArrowUp') {
+          if (cmdHistory.length === 0) return;
+          if (historyIdx === cmdHistory.length) savedInput = inputLine;
+          if (historyIdx > 0) {
+            historyIdx--;
+            var prev = cmdHistory[historyIdx];
+            term.write('\r' + prompt + ' '.repeat(inputLine.length) + '\r' + prompt + prev);
+            inputLine = prev;
+            cursorPos = prev.length;
+          }
+          return;
+        }
+        if (ev.key === 'ArrowDown') {
+          if (historyIdx === cmdHistory.length) return;
+          historyIdx++;
+          var next = historyIdx < cmdHistory.length ? cmdHistory[historyIdx] : savedInput;
+          term.write('\r' + prompt + ' '.repeat(inputLine.length) + '\r' + prompt + next);
+          inputLine = next;
+          cursorPos = next.length;
+          return;
+        }
         if (ev.key === 'Enter') {
           if (inputLine.trim() === '') {
             term.writeln('');
@@ -155,17 +225,7 @@
           }
           term.writeln('');
           var cmd = inputLine;
-          inputLine = '';
-          cursorPos = 0;
-          execCmd(cmd).then(function(r) {
-            if (r.output) term.write(r.output.replace(/\n/g, '\r\n'));
-            if (!r.output.endsWith('\n')) term.writeln('');
-            prompt = r.prompt;
-            term.write(prompt);
-          }).catch(function() {
-            term.writeln('\x1b[31mError executing command\x1b[0m');
-            term.write(prompt);
-          });
+          doExec(cmd);
         } else if (ev.key === 'Backspace') {
           if (cursorPos > 0) {
             inputLine = inputLine.slice(0, -1);
