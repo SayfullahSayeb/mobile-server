@@ -63,9 +63,7 @@ if ($df_out) {
     if (count($dl) >= 2) {
         $dp = preg_split('/\s+/', $dl[1]);
         if (count($dp) >= 4) {
-            $dt = (float)$dp[1];
-            $du = (float)$dp[2];
-            $disk_s = number_format($du / 1073741824, 1) . "G / " . number_format($dt / 1073741824, 1) . "G";
+            $disk_s = number_format((float)$dp[2] / 1073741824, 1) . "G / " . number_format((float)$dp[1] / 1073741824, 1) . "G";
         }
     }
 }
@@ -94,23 +92,58 @@ $device = trim("$device_man $device_model") ?: 'N/A';
 $os_str = "Android $os" . ($os_codename ? " ($os_codename)" : '');
 $nginx_ver = trim((string)(@shell_exec('nginx -v 2>&1') ?: 'N/A'));
 $mariadb_ver = trim((string)(@shell_exec('mariadb --version 2>&1') ?: 'N/A'));
+
+$art = [
+    '           .---.',
+    '          /_____\\',
+    '         /  O  O\\',
+    '        /   ▲    \\',
+    '       /  ────┐  \\',
+    '      /         \\',
+    '     /  │     │  \\',
+    '    /   │     │   \\',
+    '   /    │     │    \\',
+    '  /     └───┘┘     \\',
+    ' /_________________\\',
+    '        |  |',
+    '        |  |',
+    '        |  |',
+    '       /    \\',
+    '      /      \\',
+];
+
+$info = [
+    "<span style=\"color:var(--blue)\">OS</span>:        " . htmlspecialchars($os_str),
+    "<span style=\"color:var(--blue)\">Host</span>:      " . htmlspecialchars($device),
+    "<span style=\"color:var(--blue)\">Kernel</span>:    " . htmlspecialchars($kernel) . ' (' . htmlspecialchars($arch) . ')',
+    "<span style=\"color:var(--blue)\">Uptime</span>:    " . htmlspecialchars($uptime_str),
+    "<span style=\"color:var(--blue)\">Packages</span>:  " . htmlspecialchars($pkg_count),
+    "<span style=\"color:var(--blue)\">Shell</span>:     " . htmlspecialchars(basename($shell)),
+    "<span style=\"color:var(--blue)\">CPU</span>:       " . htmlspecialchars($cpu) . ($cores ? ' (' . $cores . ' cores)' : ''),
+    "<span style=\"color:var(--blue)\">Memory</span>:    " . htmlspecialchars($mem_str),
+    "<span style=\"color:var(--blue)\">Disk</span>:      " . htmlspecialchars($disk_s),
+    "<span style=\"color:var(--blue)\">Battery</span>:   " . htmlspecialchars($battery),
+    "<span style=\"color:var(--blue)\">Local IP</span>:  " . htmlspecialchars($ip_local),
+];
+if ($ip_public) $info[] = "<span style=\"color:var(--blue)\">Public IP</span>:  " . htmlspecialchars($ip_public);
+$info[] = "<span style=\"color:var(--blue)\">PHP</span>:       " . htmlspecialchars(PHP_VERSION);
+$info[] = "<span style=\"color:var(--blue)\">Nginx</span>:     " . htmlspecialchars($nginx_ver);
+$info[] = "<span style=\"color:var(--blue)\">MariaDB</span>:   " . htmlspecialchars($mariadb_ver);
+
+$art_width = 24;
+$lines = [];
+$max = max(count($art), count($info));
+for ($i = 0; $i < $max; $i++) {
+    $a = $i < count($art) ? $art[$i] : '';
+    $a_padded = str_pad($a, $art_width);
+    $a_colored = preg_replace('/^(\s*)(.+)/', '<span style="color:var(--green)">$1$2</span>', $a_padded);
+    $t = $i < count($info) ? $info[$i] : '';
+    if ($i === 0) {
+        $lines[] = '<span style="color:var(--blue)">' . htmlspecialchars($host) . '</span><span style="color:var(--text3)">@mobile-server</span>';
+        $lines[] = '<span style="color:var(--text3)">' . str_repeat('-', $art_width + 2 + 37) . '</span>';
+    }
+    $lines[] = $a_colored . '  ' . $t;
+}
 ?>
-  <pre style="margin:0;font-size:13px;line-height:1.8;font-family:'SF Mono','Fira Code',Consolas,monospace;color:var(--text2);overflow-x:auto;white-space:pre-wrap"><span style="color:var(--blue)"><?= htmlspecialchars($host) ?></span><span style="color:var(--text3)">@mobile-server</span>
-<span style="color:var(--text3)">---------------------------</span>
-<span style="color:var(--green)">           .---.</span>          <span style="color:var(--blue)">OS</span>:        <?= htmlspecialchars($os_str) ?>
-<span style="color:var(--green)">          /_____\</span>          <span style="color:var(--blue)">Host</span>:      <?= htmlspecialchars($device) ?>
-<span style="color:var(--green)">         /  O  O\</span>          <span style="color:var(--blue)">Kernel</span>:    <?= htmlspecialchars($kernel) ?> (<?= htmlspecialchars($arch) ?>)
-<span style="color:var(--green)">        /   ▲    \</span>          <span style="color:var(--blue)">Uptime</span>:    <?= htmlspecialchars($uptime_str) ?>
-<span style="color:var(--green)">       /  ────┐  \</span>          <span style="color:var(--blue)">Packages</span>:  <?= htmlspecialchars($pkg_count) ?>
-<span style="color:var(--green)">      /         \</span>           <span style="color:var(--blue)">Shell</span>:     <?= htmlspecialchars(basename($shell)) ?>
-<span style="color:var(--green)">     /  │     │  \</span>           <span style="color:var(--blue)">CPU</span>:       <?= htmlspecialchars($cpu) ?><?= $cores ? " ($cores cores)" : '' ?>
-<span style="color:var(--green)">    /   │     │   \</span>          <span style="color:var(--blue)">Memory</span>:    <?= htmlspecialchars($mem_str) ?>
-<span style="color:var(--green)">   /    │     │    \</span>         <span style="color:var(--blue)">Disk</span>:      <?= htmlspecialchars($disk_s) ?>
-<span style="color:var(--green)">  /     └───┘┘     \</span>         <span style="color:var(--blue)">Battery</span>:   <?= htmlspecialchars($battery) ?>
-<span style="color:var(--green)"> /_________________\</span>        <span style="color:var(--blue)">Local IP</span>:  <?= htmlspecialchars($ip_local) ?>
-<span style="color:var(--green)">        |  |</span>                <?php if ($ip_public): ?><span style="color:var(--blue)">Public IP</span>:  <?= htmlspecialchars($ip_public) ?><?php endif; ?>
-<span style="color:var(--green)">        |  |</span>
-<span style="color:var(--green)">        |  |</span>                <span style="color:var(--blue)">PHP</span>:       <?= htmlspecialchars(PHP_VERSION) ?>
-<span style="color:var(--green)">       /    \</span>               <span style="color:var(--blue)">Nginx</span>:     <?= htmlspecialchars($nginx_ver) ?>
-<span style="color:var(--green)">      /      \</span>              <span style="color:var(--blue)">MariaDB</span>:   <?= htmlspecialchars($mariadb_ver) ?></pre>
+  <pre style="margin:0;font-size:13px;line-height:1.8;font-family:'SF Mono','Fira Code',Consolas,monospace;color:var(--text2);overflow-x:auto;white-space:pre-wrap"><?= implode("\n", $lines) ?></pre>
 </div>
