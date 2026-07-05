@@ -51,6 +51,9 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
     <a href="/phpmyadmin" target="_blank" rel="noopener" class="nav-i">
       <span class="ni"><i class="fas fa-database"></i></span><span class="nl">phpMyAdmin</span>
     </a>
+    <a href="?tab=system" class="nav-i <?= $tab==='system'?'act':'' ?>">
+      <span class="ni"><i class="fas fa-microchip"></i></span><span class="nl">System</span>
+    </a>
     <a href="?tab=settings" class="nav-i <?= $tab==='settings'?'act':'' ?>">
       <span class="ni"><i class="fas fa-cog"></i></span><span class="nl">Settings</span>
     </a>
