@@ -19,41 +19,65 @@
 
   $.terminal.defaults.formatters = [$.terminal.from_ansi];
 
+  function tryParse(line) {
+    try { return JSON.parse(line); } catch(e) { return null; }
+  }
+
   $('#terminal-wrap').terminal(function(command, term) {
     if (!command.trim()) return;
-    return $.ajax({
-      url: 'panel/ssh_exec.php',
+
+    return fetch('panel/ssh_exec.php?action=run', {
       method: 'POST',
-      data: { cmd: command, csrf_token: CSRF },
-      dataType: 'json'
-    }).then(function(data) {
-      if (data.output) term.echo(data.output);
-      if (data.prompt) term.set_prompt(data.prompt);
-    }).catch(function(xhr) {
-      var msg = 'HTTP ' + (xhr.status || 'error');
-      try {
-        var d = JSON.parse(xhr.responseText);
-        msg = d.output || msg;
-      } catch(e) {}
-      term.error(msg);
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'cmd=' + encodeURIComponent(command) + '&csrf_token=' + encodeURIComponent(CSRF)
+    }).then(function(response) {
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = '';
+
+      function pump() {
+        return reader.read().then(function(result) {
+          if (result.done) {
+            var last = tryParse(buf.trim());
+            if (last && last.t === 'p') term.set_prompt(last.d);
+            return;
+          }
+          buf += decoder.decode(result.value, {stream: true});
+          var lines = buf.split('\n');
+          buf = lines.pop() || '';
+          for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (!line) continue;
+            var msg = tryParse(line);
+            if (!msg) continue;
+            if (msg.t === 'o' && msg.d) {
+              // Remove trailing newlines for cleaner display
+              var text = msg.d.replace(/\n$/, '');
+              if (text) term.echo(text);
+            } else if (msg.t === 'p') {
+              term.set_prompt(msg.d);
+            }
+            // 'd' (done) has no further action — we just stop reading
+          }
+          return pump();
+        });
+      }
+      return pump();
+    }).catch(function(err) {
+      term.error('Error: ' + err.message);
     });
   }, {
     greetings: false,
-    prompt: '\x1b[32m$\x1b[0m ',
-    name: 'mobile_server_shell',
+    prompt: '$ ',
+    name: 'ms_term',
     height: '100%',
-    width: '100%',
     exit: false,
     clear: true,
-    keydown: function(e, term) {
-      // Ctrl+C while busy
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-        return false; // let jQuery Terminal handle it
-      }
-    }
+    fontSize: 16,
   });
 
-  // Fix height on window resize
   function fixHeight() {
     try { $('#terminal-wrap').terminal('resize'); } catch(e) {}
   }
