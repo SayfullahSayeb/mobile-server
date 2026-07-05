@@ -1,140 +1,223 @@
-<div class="sec" style="padding:0;overflow:hidden;height:calc(var(--vh, 100vh) - 140px);min-height:300px;display:flex;flex-direction:column">
-  <div id="term-container" style="flex:1;min-height:0;padding:8px;background:#0d1117;position:relative">
-    <div id="term-status" style="display:flex;align-items:center;justify-content:center;height:100%;color:#8b949e;font-size:15px;gap:10px;flex-direction:column">
-      <i class="fas fa-terminal"></i> Terminal ready
-      <div id="term-loading" style="font-size:13px;color:#64748b;margin-top:4px">Connecting...</div>
-    </div>
-    <div id="term-error" style="display:none;align-items:center;justify-content:center;height:100%;color:#ff7b72;font-size:14px;gap:8px;flex-direction:column;padding:20px;text-align:center">
-      <i class="fas fa-exclamation-triangle" style="font-size:24px"></i>
-      <div id="term-error-msg" style="font-weight:600">Failed to connect</div>
-      <div style="font-size:13px;color:#8b949e"><?= htmlspecialchars($ip_addr ?? '') ?>:8023</div>
-      <button onclick="location.reload()" class="btn btn-p btn-s" style="margin-top:8px">Retry</button>
+<style>
+#term-wrapper { background:#0d1117; }
+.xterm { height:100%; padding:8px; }
+.xterm-viewport { scrollbar-width:thin; scrollbar-color:#30363d transparent; }
+</style>
+<div class="sec" style="padding:0;overflow:hidden;height:calc(100vh - 140px);min-height:300px;display:flex;flex-direction:column">
+  <div id="term-wrapper" style="flex:1;min-height:0;position:relative">
+    <div id="term-loading" style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-size:14px">
+      <i class="fas fa-spinner fa-spin" style="margin-right:8px"></i> Loading terminal...
     </div>
   </div>
 </div>
 
-<?php
-$wsToken = bin2hex(random_bytes(16));
-$wsTokenFile = sys_get_temp_dir() . '/ws_' . session_id() . '.token';
-@file_put_contents($wsTokenFile, $wsToken);
-@chmod($wsTokenFile, 0600);
-$wsHost = $ip_addr ?? '127.0.0.1';
-?>
+<?php $csrf = $_SESSION['csrf_token'] ?? ''; ?>
 
 <script>
 (function() {
   'use strict';
-  function setVh() {
-    document.documentElement.style.setProperty('--vh', window.innerHeight + 'px');
+  var CSRF = '<?= htmlspecialchars($csrf) ?>';
+  var wrapper = document.getElementById('term-wrapper');
+  var loading = document.getElementById('term-loading');
+
+  var term, fitAddon;
+  var buf = '';
+  var promptVisLen = 2; // visible length of current prompt
+  var promptRaw = '\x1b[32m$\x1b[0m ';
+  var history = [];
+  var histIdx = -1;
+  var execBusy = false;
+
+  function stripAnsi(s) {
+    return s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
   }
-  setVh();
-  window.addEventListener('resize', setVh);
 
-  var WS_HOST = '<?= htmlspecialchars($wsHost) ?>';
-  var WS_PORT = 8023;
-  var WS_TOKEN = '<?= htmlspecialchars($wsToken) ?>';
-  var SID = '<?= htmlspecialchars(session_id()) ?>';
-  var CSRF_TOKEN = '<?= htmlspecialchars($csrf_token ?? '') ?>';
-  var term = null;
-  var fitAddon = null;
-  var ws = null;
-  var wsReconnectTimer = null;
-  var scriptsLoaded = { xterm: false, fit: false };
-  var initCalled = false;
+  function visLen(s) {
+    return stripAnsi(s).length;
+  }
 
-  var termContainer = document.getElementById('term-container');
-  var termStatus = document.getElementById('term-status');
-  var termLoading = document.getElementById('term-loading');
-  var termError = document.getElementById('term-error');
-  var termErrorMsg = document.getElementById('term-error-msg');
+  function writeFirstPrompt() {
+    term.write(promptRaw);
+    buf = '';
+    promptVisLen = visLen(promptRaw);
+  }
 
-  function showError(msg) {
-    if (termStatus) termStatus.style.display = 'none';
-    if (termError) {
-      termError.style.display = 'flex';
-      if (termErrorMsg) termErrorMsg.textContent = msg;
+  function writePrompt() {
+    term.write('\r\n' + promptRaw);
+    buf = '';
+    promptVisLen = visLen(promptRaw);
+  }
+
+  function getCursorAbs() {
+    return promptVisLen + buf.length;
+  }
+
+  function redraw() {
+    var cols = term.cols;
+    var display = promptRaw + buf;
+    var totalVis = visLen(display);
+    var cursorAbs = getCursorAbs();
+
+    term.write('\r\x1b[K');
+    term.write(display);
+
+    var totalRows = Math.ceil(totalVis / cols) || 1;
+    var cursorRow = Math.floor(cursorAbs / cols);
+    var cursorCol = cursorAbs % cols;
+    var moveUp = totalRows - 1 - cursorRow;
+    if (moveUp > 0) term.write('\x1b[' + moveUp + 'A');
+    if (cursorCol > 0) term.write('\x1b[' + cursorCol + 'C');
+  }
+
+  function insertAtCursor(ch) {
+    if (execBusy) return;
+    if (buf.length < 4096) {
+      buf = buf.slice(0, cursorPos()) + ch + buf.slice(cursorPos());
+    }
+    redraw();
+  }
+
+  function cursorPos() {
+    return buf.length;
+  }
+
+  function handleKey(key, ev) {
+    if (execBusy && key !== '\x03') return;
+    var p = key.length === 1 && !ev.ctrlKey && !ev.altKey && key.charCodeAt(0) >= 0x20;
+    if (p) { insertAtCursor(key); return; }
+    switch (key) {
+      case '\r': submit(); break;
+      case '\x7f':
+        if (buf.length > 0) { buf = buf.slice(0, -1); redraw(); }
+        break;
+      case '\x1b[A': historyUp(); break;
+      case '\x1b[B': historyDown(); break;
+      case '\x03':
+        if (execBusy) {
+          execBusy = false;
+          term.write('^C\r\n' + promptRaw);
+          buf = '';
+        } else {
+          term.write('^C\r\n' + promptRaw);
+          buf = '';
+        }
+        break;
+      case '\x04':
+        if (buf === '') { buf = 'exit'; submit(); }
+        break;
+      case '\x0c':
+        term.write('\x1bc' + promptRaw);
+        buf = '';
+        break;
+      case '\x15': buf = ''; redraw(); break;
+      case '\x1b[3~':
+        buf = buf.slice(0, -1);
+        redraw();
+        break;
     }
   }
 
-  function setLoading(msg) {
-    if (termLoading) termLoading.textContent = msg;
+  function historyUp() {
+    if (history.length === 0) return;
+    if (histIdx === -1) histIdx = history.length - 1;
+    else if (histIdx > 0) histIdx--;
+    else return;
+    buf = history[histIdx];
+    redraw();
   }
 
-  function startWsServer(cb) {
-    setLoading('Starting terminal server...');
-    fetch('panel/ssh_exec.php', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-      body: 'action=start_ws&csrf_token=' + encodeURIComponent(CSRF_TOKEN)
-    }).then(function(r) { return r.json(); }).then(function(data) {
-      cb(data.ok);
-    }).catch(function() {
-      cb(false);
-    });
+  function historyDown() {
+    if (histIdx === -1) return;
+    histIdx++;
+    if (histIdx >= history.length) { histIdx = -1; buf = ''; redraw(); return; }
+    buf = history[histIdx];
+    redraw();
   }
 
-  function connectWs() {
-    if (ws) {
-      try { ws.close(); } catch(e) {}
-      ws = null;
+  function submit() {
+    var cmd = buf;
+    if (cmd.trim() !== '') {
+      history.push(cmd);
+      if (history.length > 1000) history.shift();
     }
-    var url = 'ws://' + WS_HOST + ':' + WS_PORT + '/?token=' + WS_TOKEN + '&sid=' + encodeURIComponent(SID);
-    setLoading('Connecting...');
-    try {
-      ws = new WebSocket(url);
-    } catch(e) {
-      setLoading('Connection failed. Starting server...');
-      startWsServer(function(ok) {
-        if (!ok) { showError('Failed to start terminal server'); return; }
-        setTimeout(function() {
-          try {
-            ws = new WebSocket(url);
-            bindWs();
-          } catch(e) { showError('Connection failed: ' + e.message); }
-        }, 500);
-      });
-      return;
+    histIdx = -1;
+    execBusy = true;
+    term.write('\r\n');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', 'panel/ssh_exec.php', true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.responseType = 'json';
+    xhr.onload = function() {
+      if (xhr.status === 200 && xhr.response) {
+        var d = xhr.response;
+        if (d.output) term.write(d.output);
+        var p = d.prompt || promptRaw;
+        promptRaw = p;
+        term.write(promptRaw);
+        buf = '';
+        promptVisLen = visLen(promptRaw);
+      } else {
+        term.write('\r\n\x1b[31mError: HTTP ' + xhr.status + '\x1b[0m\r\n' + promptRaw);
+        buf = '';
+      }
+      execBusy = false;
+      term.focus();
+    };
+    xhr.onerror = function() {
+      term.write('\x1b[31mNetwork error\x1b[0m\r\n' + promptRaw);
+      buf = '';
+      execBusy = false;
+      term.focus();
+    };
+    xhr.timeout = 30000;
+    xhr.ontimeout = function() {
+      term.write('\x1b[31mCommand timed out (30s)\x1b[0m\r\n' + promptRaw);
+      buf = '';
+      execBusy = false;
+      term.focus();
+    };
+    xhr.send('cmd=' + encodeURIComponent(cmd) + '&csrf_token=' + encodeURIComponent(CSRF));
+  }
+
+  function init() {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css';
+    document.head.appendChild(link);
+
+    var scriptUrls = [
+      'https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js',
+      'https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js',
+    ];
+
+    function loadAll(idx) {
+      if (idx >= scriptUrls.length) { boot(); return; }
+      var s = document.createElement('script');
+      s.src = scriptUrls[idx];
+      s.onload = function() { loadAll(idx + 1); };
+      s.onerror = function() {
+        var fb = document.createElement('script');
+        fb.src = scriptUrls[idx].replace('cdn.jsdelivr.net/npm/', 'unpkg.com/');
+        fb.onload = function() { loadAll(idx + 1); };
+        fb.onerror = function() { loading.innerHTML = '<span style="color:#ff7b72">Failed to load terminal library</span>'; };
+        document.head.appendChild(fb);
+      };
+      document.head.appendChild(s);
     }
-    bindWs();
-  }
 
-  function bindWs() {
-    if (!ws) return;
-    ws.onopen = function() {
-      setLoading('Connected');
-      if (term) {
-        term.focus();
-        if (fitAddon) setTimeout(function() { try { fitAddon.fit(); } catch(e) {} }, 50);
+    function boot() {
+      if (typeof Terminal === 'undefined') {
+        loading.innerHTML = '<span style="color:#ff7b72">Terminal library not available</span>';
+        return;
       }
-    };
-    ws.onmessage = function(ev) {
-      if (term) {
-        term.write(ev.data);
-      }
-    };
-    ws.onerror = function() {
-      setLoading('Connection error');
-    };
-    ws.onclose = function() {
-      if (term) {
-        term.writeln('\r\n\x1b[31mConnection closed\x1b[0m');
-      }
-    };
-  }
-
-  function initTerminal() {
-    if (initCalled) return;
-    initCalled = true;
-    try {
-      if (typeof Terminal === 'undefined') throw new Error('xterm.js not loaded');
-      if (typeof FitAddon === 'undefined') throw new Error('xterm-addon-fit not loaded');
-
-      if (termStatus) termStatus.style.display = 'none';
+      loading.style.display = 'none';
+      var container = document.createElement('div');
+      container.style.cssText = 'width:100%;height:100%';
+      wrapper.appendChild(container);
       fitAddon = new FitAddon.FitAddon();
       term = new Terminal({
-        cursorBlink: true,
-        cursorStyle: 'block',
-        fontSize: 14,
+        cursorBlink: true, cursorStyle: 'block', fontSize: 14,
         fontFamily: "'SF Mono','Fira Code','Cascadia Code','JetBrains Mono','Noto Mono',Consolas,monospace",
         theme: {
           background: '#0d1117', foreground: '#c9d1d9', cursor: '#c9d1d9', selectionBackground: '#3b82f622',
@@ -144,78 +227,31 @@ $wsHost = $ip_addr ?? '127.0.0.1';
           brightYellow: '#e3b341', brightBlue: '#79c0ff', brightMagenta: '#d2a8ff',
           brightCyan: '#56d4dd', brightWhite: '#f0f6fc',
         },
-        allowTransparency: true,
+        allowTransparency: true, allowProposedApi: true,
       });
       term.loadAddon(fitAddon);
-      term.open(termContainer);
-      term.focus();
-
-      setTimeout(function() { try { fitAddon.fit(); } catch(e) {} }, 50);
-      window.addEventListener('resize', function() { if (fitAddon) { try { fitAddon.fit(); } catch(e) {} } });
-
-      term.onData(function(data) {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(data);
+      term.open(container);
+      term.onKey(function(ev) { handleKey(ev.key, ev.domEvent); });
+      term.attachCustomKeyEventHandler(function(e) {
+        if (e.type === 'keydown' && e.ctrlKey && e.key === 'v') {
+          navigator.clipboard.readText().then(function(t) {
+            for (var i = 0; i < t.length; i++) {
+              handleKey(t[i], {ctrlKey: false, altKey: false, preventDefault: function(){}});
+            }
+          });
+          return false;
         }
+        return true;
       });
-
-      connectWs();
-    } catch (e) {
-      showError('Terminal error: ' + e.message);
-    }
-  }
-
-  function loadXterm() {
-    if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
-      initTerminal();
-      return;
-    }
-    var link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css';
-    link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
-
-    var urls = [
-      'https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js',
-      'https://unpkg.com/xterm@5.3.0/lib/xterm.js',
-      'https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js'
-    ];
-    var fitUrls = [
-      'https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js',
-      'https://unpkg.com/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js',
-      'https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js'
-    ];
-
-    function loadScript(urls, idx, cb) {
-      if (idx >= urls.length) { cb(false); return; }
-      var s = document.createElement('script');
-      s.src = urls[idx];
-      s.onload = function() { cb(true); };
-      s.onerror = function() { loadScript(urls, idx + 1, cb); };
-      document.head.appendChild(s);
+      container.addEventListener('click', function() { term.focus(); });
+      fitAddon.fit();
+      window.addEventListener('resize', function() { try { fitAddon.fit(); } catch(e) {} });
+      writeFirstPrompt();
     }
 
-    loadScript(urls, 0, function(ok) {
-      scriptsLoaded.xterm = ok;
-      if (!ok) { showError('Failed to load xterm.js from any CDN'); return; }
-      loadScript(fitUrls, 0, function(ok2) {
-        scriptsLoaded.fit = ok2;
-        if (!ok2) { showError('Failed to load xterm-addon-fit from any CDN'); return; }
-        initTerminal();
-      });
-    });
+    loadAll(0);
   }
 
-  var loadTimer = setTimeout(function() {
-    if (!initCalled) showError('Terminal loading timed out. Check your connection.');
-  }, 15000);
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { clearTimeout(loadTimer); loadXterm(); });
-  } else {
-    clearTimeout(loadTimer);
-    loadXterm();
-  }
+  init();
 })();
 </script>
