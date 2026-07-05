@@ -56,25 +56,31 @@ if (!$uptime_ts || $uptime_ts === '0' || $uptime_ts === '0.00') {
     if ($up_raw) $uptime_str = preg_replace('/^up\s+/', '', $up_raw);
 }
 
-$df_out = @shell_exec("df -B1 " . escapeshellarg(HOME_DIR) . " 2>/dev/null");
+$disk_total = @disk_total_space(HOME_DIR);
+$disk_free = @disk_free_space(HOME_DIR);
 $disk_s = 'N/A';
-if ($df_out) {
-    $dl = explode("\n", trim($df_out));
-    if (count($dl) >= 2) {
-        $dp = preg_split('/\s+/', $dl[1]);
-        if (count($dp) >= 4) {
-            $disk_s = number_format((float)$dp[2] / 1073741824, 1) . "G / " . number_format((float)$dp[1] / 1073741824, 1) . "G";
-        }
-    }
+if ($disk_total > 0) {
+    $disk_used = $disk_total - $disk_free;
+    $disk_s = number_format($disk_used / 1073741824, 1) . "G / " . number_format($disk_total / 1073741824, 1) . "G";
 }
 
 $battery = 'N/A';
-$bat = @file_get_contents('/sys/class/power_supply/battery/capacity');
-if ($bat !== false) {
-    $bat_pct = (int)trim($bat);
-    $bat_st = trim((string)(@file_get_contents('/sys/class/power_supply/battery/status') ?: 'Unknown'));
-    $battery = "$bat_pct% (" . strtolower($bat_st) . ")";
-} else {
+$bat_paths = [
+    '/sys/class/power_supply/battery/capacity',
+    '/sys/class/power_supply/BAT0/capacity',
+    '/sys/class/power_supply/BAT1/capacity',
+];
+foreach ($bat_paths as $bp) {
+    $bat = @file_get_contents($bp);
+    if ($bat !== false) {
+        $bat_pct = (int)trim($bat);
+        $bat_dir = dirname($bp);
+        $bat_st = trim((string)(@file_get_contents($bat_dir . '/status') ?: 'Unknown'));
+        $battery = "$bat_pct% (" . strtolower($bat_st) . ")";
+        break;
+    }
+}
+if ($battery === 'N/A') {
     $bat_json = trim((string)(@shell_exec('termux-battery-status 2>/dev/null') ?: ''));
     if ($bat_json) {
         $bat_data = json_decode($bat_json, true);
