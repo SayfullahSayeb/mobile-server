@@ -13,18 +13,28 @@
 </style>
 <div class="sec" style="padding:24px">
 <?php
-@set_time_limit(4);
+@set_time_limit(3);
 
-$tos = 'timeout 2 ';
-
-// ---- fast data ----
-$os = trim((string)(@shell_exec($tos . 'getprop ro.build.version.release 2>/dev/null') ?: 'Android'));
-$os_codename = trim((string)(@shell_exec($tos . 'getprop ro.build.version.codename 2>/dev/null') ?: ''));
-$os_sdk = trim((string)(@shell_exec($tos . 'getprop ro.build.version.sdk 2>/dev/null') ?: ''));
-$device_man = trim((string)(@shell_exec($tos . 'getprop ro.product.manufacturer 2>/dev/null') ?: ''));
-$device_model = trim((string)(@shell_exec($tos . 'getprop ro.product.model 2>/dev/null') ?: ''));
-$kernel = trim((string)(@shell_exec($tos . 'uname -r 2>/dev/null') ?: 'N/A'));
-$arch = trim((string)(@shell_exec($tos . 'uname -m 2>/dev/null') ?: 'N/A'));
+// ---- batch all system props in one call ----
+$os = 'Android'; $os_codename = ''; $os_sdk = ''; $device_man = ''; $device_model = '';
+$kernel = 'N/A'; $arch = 'N/A';
+$props = @shell_exec('getprop ro.build.version.release 2>/dev/null; echo _;'
+    . 'getprop ro.build.version.codename 2>/dev/null; echo _;'
+    . 'getprop ro.build.version.sdk 2>/dev/null; echo _;'
+    . 'getprop ro.product.manufacturer 2>/dev/null; echo _;'
+    . 'getprop ro.product.model 2>/dev/null; echo _;'
+    . 'uname -r 2>/dev/null; echo _;'
+    . 'uname -m 2>/dev/null');
+if ($props) {
+    $parts = explode("_\n", $props);
+    if (isset($parts[0])) $os = trim($parts[0]) ?: 'Android';
+    if (isset($parts[1])) $os_codename = trim($parts[1]);
+    if (isset($parts[2])) $os_sdk = trim($parts[2]);
+    if (isset($parts[3])) $device_man = trim($parts[3]);
+    if (isset($parts[4])) $device_model = trim($parts[4]);
+    if (isset($parts[5])) $kernel = trim($parts[5]) ?: 'N/A';
+    if (isset($parts[6])) $arch = trim($parts[6]) ?: 'N/A';
+}
 
 $cpu_raw = @file_get_contents('/proc/cpuinfo');
 $cpu = 'N/A'; $cores = 0;
@@ -63,17 +73,18 @@ if ($uptime_str === 'N/A') {
     $uptime_str = trim((string)(@shell_exec('uptime -p 2>/dev/null') ?: 'N/A'));
 }
 
-$disk_total = @disk_total_space(HOME_DIR);
-$disk_free = @disk_free_space(HOME_DIR);
 $disk_s = 'N/A';
-if ($disk_total > 0) {
-    $disk_s = number_format(($disk_total - $disk_free) / 1073741824, 1) . "G / " . number_format($disk_total / 1073741824, 1) . "G";
+$df = @shell_exec('df -k ' . escapeshellarg(HOME_DIR) . ' 2>/dev/null | tail -1');
+if ($df && preg_match('/\s+(\d+)\s+\d+\s+(\d+)\s+/', $df, $dm)) {
+    $total = (int)$dm[1] * 1024;
+    $avail = (int)$dm[2] * 1024;
+    $disk_s = number_format(($total - $avail) / 1073741824, 1) . "G / " . number_format($total / 1073741824, 1) . "G";
 }
 
 // ---- single exec for pkg count + versions ----
 $pkg_count = '?';
 $nginx_ver_s = 'N/A'; $phpfpm_ver_s = 'N/A'; $mariadb_ver_s = 'N/A'; $cloudflared_ver_s = 'N/A';
-exec($tos . 'dpkg -l 2>/dev/null | wc -l; '
+exec('dpkg -l 2>/dev/null | wc -l; '
     . 'echo ___N___; nginx -v 2>&1; '
     . 'echo ___P___; php-fpm -v 2>&1 | head -1; '
     . 'echo ___M___; mariadb --version 2>&1 | head -1; '
