@@ -1,18 +1,20 @@
 <div class="sec" style="padding:24px">
 <?php
-$os = trim((string)(@shell_exec('getprop ro.build.version.release 2>/dev/null') ?: 'Android'));
-$os_codename = trim((string)(@shell_exec('getprop ro.build.version.codename 2>/dev/null') ?: ''));
-$os_sdk = trim((string)(@shell_exec('getprop ro.build.version.sdk 2>/dev/null') ?: ''));
-$device_man = trim((string)(@shell_exec('getprop ro.product.manufacturer 2>/dev/null') ?: ''));
-$device_model = trim((string)(@shell_exec('getprop ro.product.model 2>/dev/null') ?: ''));
-$kernel = trim((string)(@shell_exec('uname -r 2>/dev/null') ?: 'N/A'));
-$arch = trim((string)(@shell_exec('uname -m 2>/dev/null') ?: 'N/A'));
-$shell = getenv('SHELL') ?: trim((string)(@shell_exec('echo $SHELL 2>/dev/null') ?: 'bash'));
-$terminal = getenv('TERM') ?: trim((string)(@shell_exec('echo $TERM 2>/dev/null') ?: 'xterm'));
+@set_time_limit(10);
+$tos = 'timeout 3 ';
+$os = trim((string)(@shell_exec($tos . 'getprop ro.build.version.release 2>/dev/null') ?: 'Android'));
+$os_codename = trim((string)(@shell_exec($tos . 'getprop ro.build.version.codename 2>/dev/null') ?: ''));
+$os_sdk = trim((string)(@shell_exec($tos . 'getprop ro.build.version.sdk 2>/dev/null') ?: ''));
+$device_man = trim((string)(@shell_exec($tos . 'getprop ro.product.manufacturer 2>/dev/null') ?: ''));
+$device_model = trim((string)(@shell_exec($tos . 'getprop ro.product.model 2>/dev/null') ?: ''));
+$kernel = trim((string)(@shell_exec($tos . 'uname -r 2>/dev/null') ?: 'N/A'));
+$arch = trim((string)(@shell_exec($tos . 'uname -m 2>/dev/null') ?: 'N/A'));
+$shell = getenv('SHELL') ?: trim((string)(@shell_exec($tos . 'echo $SHELL 2>/dev/null') ?: 'bash'));
+$terminal = getenv('TERM') ?: trim((string)(@shell_exec($tos . 'echo $TERM 2>/dev/null') ?: 'xterm'));
 
-$pkg_count = trim((string)(@shell_exec('dpkg --get-selections 2>/dev/null | grep -v deinstall | wc -l') ?: ''));
+$pkg_count = trim((string)(@shell_exec($tos . 'dpkg --get-selections 2>/dev/null | grep -v deinstall | wc -l') ?: ''));
 if (!$pkg_count || $pkg_count === '0') {
-    $pkg_count = trim((string)(@shell_exec('pkg list-installed 2>/dev/null | wc -l') ?: '?'));
+    $pkg_count = trim((string)(@shell_exec($tos . 'pkg list-installed 2>/dev/null | wc -l') ?: '?'));
 }
 
 $cpu_raw = @file_get_contents('/proc/cpuinfo');
@@ -46,13 +48,13 @@ if ($mem) {
 $mem_used_kb = $mem_total - $mem_avail;
 $mem_str = $mem_total > 0 ? number_format($mem_used_kb / 1024) . "MiB / " . number_format($mem_total / 1024) . "MiB" : 'N/A';
 
-$uptime_ts = trim((string)(@shell_exec('cat /proc/uptime 2>/dev/null | awk \'{print $1}\'') ?: '0'));
+$uptime_ts = trim((string)(@shell_exec($tos . 'cat /proc/uptime 2>/dev/null | awk \'{print $1}\'') ?: '0'));
 $up_d = (float)$uptime_ts > 0 ? floor((float)$uptime_ts / 86400) : 0;
 $up_h = (float)$uptime_ts > 0 ? floor(((float)$uptime_ts % 86400) / 3600) : 0;
 $up_m = (float)$uptime_ts > 0 ? floor(((float)$uptime_ts % 3600) / 60) : 0;
 $uptime_str = ($up_d > 0 ? "{$up_d}d " : '') . "{$up_h}h {$up_m}m";
 if (!$uptime_ts || $uptime_ts === '0' || $uptime_ts === '0.00') {
-    $up_raw = trim((string)(@shell_exec('uptime -p 2>/dev/null') ?: ''));
+    $up_raw = trim((string)(@shell_exec($tos . 'uptime -p 2>/dev/null') ?: ''));
     if ($up_raw) $uptime_str = preg_replace('/^up\s+/', '', $up_raw);
 }
 
@@ -81,7 +83,7 @@ foreach ($bat_paths as $bp) {
     }
 }
 if ($battery === 'N/A') {
-    $bat_json = trim((string)(@shell_exec('termux-battery-status 2>/dev/null') ?: ''));
+    $bat_json = trim((string)(@shell_exec($tos . 'termux-battery-status 2>/dev/null') ?: ''));
     if ($bat_json) {
         $bat_data = json_decode($bat_json, true);
         if ($bat_data && isset($bat_data['percentage'])) {
@@ -91,15 +93,18 @@ if ($battery === 'N/A') {
 }
 
 $ip_local = $ip_addr ?? '127.0.0.1';
-$ip_public = trim((string)(@shell_exec('curl -s ifconfig.me 2>/dev/null') ?: ''));
+$ip_public = trim((string)(@shell_exec($tos . 'curl -s ifconfig.me 2>/dev/null') ?: ''));
+if (!$ip_public) {
+    $ip_public = trim((string)(@shell_exec($tos . 'curl -s icanhazip.com 2>/dev/null') ?: ''));
+}
 
 $host = $hostname ?: gethostname();
 $device = trim("$device_man $device_model") ?: 'N/A';
 $os_str = "Android $os" . ($os_codename ? " ($os_codename)" : '');
-$nginx_ver = trim((string)(@shell_exec('nginx -v 2>&1') ?: 'N/A'));
-$phpfpm_ver = trim((string)(@shell_exec('php-fpm -v 2>&1 | head -1') ?: ''));
-$mariadb_ver = trim((string)(@shell_exec('mariadb --version 2>&1 | head -1') ?: ''));
-$cloudflared_ver = trim((string)(@shell_exec('cloudflared --version 2>&1 | head -1') ?: ''));
+$nginx_ver = trim((string)(@shell_exec($tos . 'nginx -v 2>&1') ?: 'N/A'));
+$phpfpm_ver = trim((string)(@shell_exec($tos . 'php-fpm -v 2>&1 | head -1') ?: ''));
+$mariadb_ver = trim((string)(@shell_exec($tos . 'mariadb --version 2>&1 | head -1') ?: ''));
+$cloudflared_ver = trim((string)(@shell_exec($tos . 'cloudflared --version 2>&1 | head -1') ?: ''));
 
 $extract_ver = function($raw) {
     if (!$raw || $raw === 'N/A') return 'N/A';
