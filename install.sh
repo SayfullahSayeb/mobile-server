@@ -8,7 +8,7 @@ pkg upgrade -y 2>/dev/null || true
 
 # Install required packages
 pkg install -y \
-    openssh \
+    ttyd \
     iproute2 \
     nginx \
     php \
@@ -24,7 +24,7 @@ pkg install -y \
     echo "[!] Package installation failed. Retrying with full output..."
     pkg update -y
     pkg install -y \
-        openssh \
+        ttyd \
         iproute2 \
         nginx \
         php \
@@ -126,7 +126,7 @@ download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/ma
 echo "[*] Downloading panel files..."
 
 mkdir -p ~/server/sites/default/public_html/panel
-for panel_file in login.php header.php footer.php dashboard.php files.php sites.php wordpress.php update.php control.css ssh.php logs.php settings.php system.php ssh_exec.php ssh_server.php update_stream.php; do
+for panel_file in login.php header.php footer.php dashboard.php files.php sites.php wordpress.php update.php control.css terminal.php logs.php settings.php system.php update_stream.php; do
     download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/panel/$panel_file" \
         ~/server/sites/default/public_html/panel/$panel_file
 done
@@ -224,45 +224,7 @@ else
     echo "[*] Server configuration already exists."
 fi
 
-echo "[*] Setting up SSH password..."
-
-SSH_PASS_FILE=~/server/.ssh_password
-SSH_PASS=""
-
-if [ -f "$SSH_PASS_FILE" ]; then
-    SSH_PASS=$(cat "$SSH_PASS_FILE")
-    echo "[*] Using existing SSH password."
-else
-    SSH_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c 12)
-    if [ -z "$SSH_PASS" ]; then
-        SSH_PASS="mobile123"
-    fi
-    echo "$SSH_PASS" > "$SSH_PASS_FILE" 2>/dev/null || true
-    chmod 600 "$SSH_PASS_FILE" 2>/dev/null || true
-    if command -v passwd &>/dev/null; then
-        if echo -e "$SSH_PASS\n$SSH_PASS" | passwd 2>/dev/null; then
-            echo "[*] SSH password set successfully."
-        else
-            echo "[!] Warning: Failed to set password via passwd."
-            echo "[!] You can set it manually later with: passwd"
-        fi
-    else
-        echo "[!] Warning: passwd command not found. Install termux-auth: pkg install termux-auth"
-    fi
-fi
-
 echo "[*] Starting services..."
-
-# Start SSH
-if pgrep sshd >/dev/null; then
-    echo "[*] SSH already running."
-else
-    if sshd 2>/dev/null; then
-        echo "[*] SSH started."
-    else
-        echo "[!] Warning: Failed to start SSH."
-    fi
-fi
 
 # Start PHP-FPM
 pkill php-fpm 2>/dev/null || true
@@ -284,6 +246,16 @@ if nginx 2>/dev/null; then
     echo "[*] Nginx started."
 else
     echo "[!] Warning: Failed to start Nginx. Check config: nginx -t"
+fi
+
+# Start ttyd (web terminal)
+pkill ttyd 2>/dev/null || true
+ttyd -W -p 7681 bash -l >/dev/null 2>&1 &
+sleep 1
+if pgrep ttyd >/dev/null; then
+    echo "[*] ttyd started on port 7681."
+else
+    echo "[!] Warning: Failed to start ttyd."
 fi
 
 echo "[*] Detecting IP..."
@@ -313,14 +285,9 @@ echo "========================================"
 echo "     Mobile Server Setup Complete!"
 echo "========================================"
 echo
-if [ -n "$SSH_PASS" ]; then
-    echo "SSH Access:"
-    echo "  ssh -p 8022 ${USER}@${IP}"
-    echo
-    echo "Password:"
-    echo "  $SSH_PASS"
-    echo
-fi
+echo "Terminal:"
+echo "  http://${IP}:7681"
+echo
 echo "Website:"
 echo "  http://${IP}:8080"
 echo

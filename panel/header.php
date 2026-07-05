@@ -3,7 +3,7 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: strict-origin-when-cross-origin');
-header("Content-Security-Policy: default-src 'self'; script-src 'self' https://code.jquery.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; frame-ancestors 'self'; connect-src 'self' https://cdn.jsdelivr.net;");
+header("Content-Security-Policy: default-src 'self'; script-src 'self' https://code.jquery.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; style-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; img-src 'self' data:; font-src 'self' https://cdnjs.cloudflare.com; frame-ancestors 'self'; frame-src *; connect-src 'self' https://cdn.jsdelivr.net;");
 
 function csrf(): string {
     return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['csrf_token'] ?? '') . '">';
@@ -39,8 +39,8 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
     <a href="?tab=sites" class="nav-i <?= $tab==='sites'?'act':'' ?>">
       <span class="ni"><i class="fas fa-globe"></i></span><span class="nl">Sites</span>
     </a>
-    <a href="?tab=ssh" class="nav-i <?= $tab==='ssh'?'act':'' ?>">
-      <span class="ni"><i class="fas fa-terminal"></i></span><span class="nl">SSH</span>
+    <a href="?tab=terminal" class="nav-i <?= $tab==='terminal'?'act':'' ?>">
+      <span class="ni"><i class="fas fa-terminal"></i></span><span class="nl">Terminal</span>
     </a>
     <a href="?tab=logs" class="nav-i <?= $tab==='logs'?'act':'' ?>">
       <span class="ni"><i class="fas fa-list-alt"></i></span><span class="nl">Logs</span>

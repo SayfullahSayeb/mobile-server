@@ -6,10 +6,11 @@ case "${1:-}" in
         if pgrep nginx >/dev/null 2>&1; then echo "  Nginx      Already running"; elif nginx -t >/dev/null 2>&1; then nginx && echo "  Nginx      Running" || echo "  Nginx      Failed"; else echo "  Nginx      Config error — run 'nginx -t'"; fi
         if pgrep php-fpm >/dev/null 2>&1; then echo "  PHP-FPM    Already running"; else php-fpm 2>/dev/null && echo "  PHP-FPM    Running" || echo "  PHP-FPM    Failed"; fi
         if pgrep mariadbd >/dev/null 2>&1; then echo "  MariaDB    Already running"; else mariadbd-safe >/dev/null 2>&1 & sleep 2; if pgrep mariadbd >/dev/null 2>&1; then echo "  MariaDB    Running"; else echo "  MariaDB    Failed"; fi; fi
+        if pgrep ttyd >/dev/null 2>&1; then echo "  ttyd       Already running"; else ttyd -W -p 7681 bash -l >/dev/null 2>&1 & sleep 1; if pgrep ttyd >/dev/null 2>&1; then echo "  ttyd       Running"; else echo "  ttyd       Failed"; fi; fi
         ;;
     stop)
         echo "Stopping Mobile Server..."
-        for svc in nginx php-fpm mariadbd; do
+        for svc in nginx php-fpm mariadbd ttyd; do
             if pgrep "$svc" >/dev/null 2>&1; then
                 pkill -9 "$svc" 2>/dev/null || true
                 sleep 1
@@ -32,7 +33,7 @@ case "${1:-}" in
     status)
         echo "Mobile Server Status"
         echo "--------------------"
-        for svc in nginx php-fpm mariadbd; do
+        for svc in nginx php-fpm mariadbd ttyd; do
             if pgrep "$svc" >/dev/null 2>&1; then
                 printf "  %-10s  Running\n" "$svc"
             else
