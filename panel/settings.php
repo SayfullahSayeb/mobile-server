@@ -55,49 +55,6 @@
 
 <div class="sec">
   <div class="df jb ac fw g2 mb2">
-    <div class="st" style="margin-bottom:0">System</div>
-  </div>
-  <div class="ig">
-    <div class="ii"><div class="l">Hostname</div><div class="v"><?= htmlspecialchars($hostname) ?></div></div>
-    <div class="ii"><div class="l">IP Address</div><div class="v"><?= htmlspecialchars($ip_addr) ?></div></div>
-    <div class="ii"><div class="l">Server Time</div><div class="v"><?= htmlspecialchars($server_time) ?></div></div>
-    <div class="ii"><div class="l">Uptime</div><div class="v"><?= htmlspecialchars($uptime) ?></div></div>
-  </div>
-</div>
-
-<div class="sec">
-  <div class="df jb ac fw g2 mb2">
-    <div class="st" style="margin-bottom:0">Installed Versions</div>
-  </div>
-  <div class="ig">
-    <?php
-    $versions = [];
-    $cmds = [
-      'Nginx'      => 'nginx -v 2>&1',
-      'PHP'        => 'php -v 2>&1 | head -1',
-      'PHP-FPM'    => 'php-fpm -v 2>&1 | head -1',
-      'MariaDB'    => 'mariadb --version 2>&1 | head -1',
-      'Cloudflared'=> 'cloudflared --version 2>&1 | head -1',
-    ];
-    foreach ($cmds as $name => $cmd) {
-        $raw = trim(@shell_exec($cmd) ?: '');
-        if ($raw) {
-            // extract version number like x.y.z
-            if (preg_match('/(\d+\.\d+[\.\d]*)/', $raw, $m)) {
-                $versions[$name] = $m[1];
-            } else {
-                $versions[$name] = $raw;
-            }
-        }
-    }
-    foreach ($versions as $name => $ver): ?>
-    <div class="ii"><div class="l"><?= htmlspecialchars($name) ?></div><div class="v"><?= htmlspecialchars($ver) ?></div></div>
-    <?php endforeach; ?>
-  </div>
-</div>
-
-<div class="sec">
-  <div class="df jb ac fw g2 mb2">
     <div class="st" style="margin-bottom:0">Diagnostics</div>
     <div class="df ac g2 fw">
       <a href="?tab=ssh&cmd=mobile-server+update" class="btn btn-s btn-p"><i class="fas fa-sync-alt"></i> Update</a>

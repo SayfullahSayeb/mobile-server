@@ -91,7 +91,20 @@ $host = $hostname ?: gethostname();
 $device = trim("$device_man $device_model") ?: 'N/A';
 $os_str = "Android $os" . ($os_codename ? " ($os_codename)" : '');
 $nginx_ver = trim((string)(@shell_exec('nginx -v 2>&1') ?: 'N/A'));
-$mariadb_ver = trim((string)(@shell_exec('mariadb --version 2>&1') ?: 'N/A'));
+$phpfpm_ver = trim((string)(@shell_exec('php-fpm -v 2>&1 | head -1') ?: ''));
+$mariadb_ver = trim((string)(@shell_exec('mariadb --version 2>&1 | head -1') ?: ''));
+$cloudflared_ver = trim((string)(@shell_exec('cloudflared --version 2>&1 | head -1') ?: ''));
+
+$extract_ver = function($raw) {
+    if (!$raw || $raw === 'N/A') return 'N/A';
+    if (preg_match('/(\d+\.\d+[\.\d]*)/', $raw, $m)) return $m[1];
+    return $raw;
+};
+$php_ver = PHP_VERSION;
+$nginx_ver_s = $extract_ver($nginx_ver);
+$phpfpm_ver_s = $extract_ver($phpfpm_ver);
+$mariadb_ver_s = $extract_ver($mariadb_ver);
+$cloudflared_ver_s = $extract_ver($cloudflared_ver);
 
 $art = [
     '           .---.',
@@ -113,7 +126,7 @@ $art = [
 ];
 
 $info = [
-    "<span style=\"color:var(--blue)\">OS</span>:        " . htmlspecialchars($os_str),
+    "<span style=\"color:var(--blue)\">OS</span>:        " . htmlspecialchars($os_str) . ' (SDK ' . htmlspecialchars($os_sdk ?: '?') . ')',
     "<span style=\"color:var(--blue)\">Host</span>:      " . htmlspecialchars($device),
     "<span style=\"color:var(--blue)\">Kernel</span>:    " . htmlspecialchars($kernel) . ' (' . htmlspecialchars($arch) . ')',
     "<span style=\"color:var(--blue)\">Uptime</span>:    " . htmlspecialchars($uptime_str),
@@ -126,9 +139,11 @@ $info = [
     "<span style=\"color:var(--blue)\">Local IP</span>:  " . htmlspecialchars($ip_local),
 ];
 if ($ip_public) $info[] = "<span style=\"color:var(--blue)\">Public IP</span>:  " . htmlspecialchars($ip_public);
-$info[] = "<span style=\"color:var(--blue)\">PHP</span>:       " . htmlspecialchars(PHP_VERSION);
-$info[] = "<span style=\"color:var(--blue)\">Nginx</span>:     " . htmlspecialchars($nginx_ver);
-$info[] = "<span style=\"color:var(--blue)\">MariaDB</span>:   " . htmlspecialchars($mariadb_ver);
+$info[] = "<span style=\"color:var(--blue)\">PHP</span>:       " . htmlspecialchars($php_ver);
+$info[] = "<span style=\"color:var(--blue)\">PHP-FPM</span>:   " . htmlspecialchars($phpfpm_ver_s);
+$info[] = "<span style=\"color:var(--blue)\">Nginx</span>:     " . htmlspecialchars($nginx_ver_s);
+$info[] = "<span style=\"color:var(--blue)\">MariaDB</span>:   " . htmlspecialchars($mariadb_ver_s);
+$info[] = "<span style=\"color:var(--blue)\">Cloudflared</span>: " . htmlspecialchars($cloudflared_ver_s);
 
 $art_width = 24;
 $lines = [];
