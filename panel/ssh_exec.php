@@ -30,10 +30,13 @@ $newCwd = $_SESSION['ssh_cwd'];
 
 if ($cmd === '') {
     // Just return prompt
-} elseif (preg_match('/^\s*cd\s+(.+)$/s', $cmd)) {
-    $parts = preg_split('/\s+/', $cmd, 2);
-    $target = isset($parts[1]) ? trim($parts[1]) : $home;
-    if ($target === '' || $target === '~') {
+} elseif ($cmd === 'cd' || preg_match('/^\s*cd\s+~?\s*$/', $cmd)) {
+    $_SESSION['ssh_prev_cwd'] = $_SESSION['ssh_cwd'];
+    $_SESSION['ssh_cwd'] = $home;
+    $newCwd = $home;
+} elseif (preg_match('/^\s*cd\s+([^\s&|;><`\'"$()!#*?\[\]{}]+)\s*$/', $cmd, $m)) {
+    $target = $m[1];
+    if ($target === '~') {
         $target = $home;
     } elseif ($target === '-') {
         $target = $_SESSION['ssh_prev_cwd'] ?? $home;

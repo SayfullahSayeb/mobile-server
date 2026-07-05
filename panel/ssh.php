@@ -83,11 +83,12 @@
 
   function handleKey(key, ev) {
     if (execBusy && key !== '\x03') return;
-    var p = key.length === 1 && !ev.ctrlKey && !ev.altKey && key.charCodeAt(0) >= 0x20;
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var p = key.length === 1 && ev.key !== 'Backspace' && !ev.ctrlKey && !ev.altKey && key.charCodeAt(0) >= 0x20 && key.charCodeAt(0) < 0x7f;
     if (p) { insertAtCursor(key); return; }
     switch (key) {
       case '\r': submit(); break;
-      case '\x7f':
+      case '\x7f': case '\b':
         if (buf.length > 0) { buf = buf.slice(0, -1); redraw(); }
         break;
       case '\x1b[A': historyUp(); break;
@@ -101,6 +102,9 @@
           term.write('^C\r\n' + promptRaw);
           buf = '';
         }
+        break;
+      case '\t':
+        for (var i = 0; i < 4; i++) insertAtCursor(' ');
         break;
       case '\x04':
         if (buf === '') { buf = 'exit'; submit(); }
