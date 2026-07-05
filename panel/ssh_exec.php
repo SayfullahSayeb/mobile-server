@@ -16,8 +16,9 @@ if (!$cmd) {
 }
 
 $output = '';
-exec($cmd . ' 2>&1', $raw, $rc);
+exec('bash -c ' . escapeshellarg($cmd) . ' 2>&1', $raw, $rc);
 $output = implode("\n", $raw);
+if ($rc !== 0) $output .= "\n\033[31mexit code: $rc\033[0m";
 
 $user = @exec('whoami') ?: 'user';
 echo json_encode([

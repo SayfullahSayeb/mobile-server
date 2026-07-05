@@ -41,9 +41,9 @@ function submit(){
  x.open('POST','panel/ssh_exec.php',true);
  x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
  x.responseType='json';
- x.onload=function(){
+  x.onload=function(){
   if(x.status===200&&x.response){
-   addLine(x.response.output||'(no output)');
+   if(x.response.output)addLine(x.response.output);
    if(x.response.prompt)promptEl.textContent=x.response.prompt.replace(/\x1b\[[0-9;]*[a-zA-Z]/g,'');
   }else{
    addLine('Error: HTTP '+x.status,'#ff7b72');
