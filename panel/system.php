@@ -174,7 +174,8 @@ $art = [
 </div>
 </div>
 
-<div class="sec">
+<div class="df g2" style="flex-wrap:wrap">
+<div class="sec" style="flex:1 1 calc(50% - 12px);min-width:280px">
   <div class="df jb ac fw g2 mb2">
     <div class="st" style="margin-bottom:0">Tunnel</div>
   </div>
@@ -201,35 +202,37 @@ $art = [
       if (!$panelRunning) @unlink(LOG_DIR . '/cf_tunnel__panel.log');
   }
   ?>
-  <div class="ig">
-    <div class="ii">
-      <div class="l">Status</div>
-      <div class="v">
-        <span class="bdg <?= $panelRunning ? 'on' : 'off' ?>"><span class="dt"></span><?= $panelRunning ? 'Running' : 'Stopped' ?></span>
+  <div class="df jb ac g2" style="flex-wrap:wrap">
+    <div class="ig" style="flex:1;min-width:200px">
+      <div class="ii">
+        <div class="l">Status</div>
+        <div class="v">
+          <span class="bdg <?= $panelRunning ? 'on' : 'off' ?>"><span class="dt"></span><?= $panelRunning ? 'Running' : 'Stopped' ?></span>
+        </div>
       </div>
+      <?php if ($panelRunning && $panelUrl): ?>
+      <div class="ii"><div class="l">URL</div><div class="v"><a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" style="color:var(--blue);word-break:break-all"><?= htmlspecialchars($panelUrl) ?></a></div></div>
+      <?php endif; ?>
     </div>
-    <?php if ($panelRunning && $panelUrl): ?>
-    <div class="ii"><div class="l">URL</div><div class="v"><a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" style="color:var(--blue);word-break:break-all"><?= htmlspecialchars($panelUrl) ?></a></div></div>
-    <?php endif; ?>
-  </div>
-  <div class="df ac g2 mt2">
-    <form method="post" style="display:inline">
-      <?= csrf() ?>
-      <input type="hidden" name="action" value="<?= $panelRunning ? 'cf_tunnel_stop' : 'cf_tunnel_start' ?>">
-      <input type="hidden" name="site" value="_panel">
-      <input type="hidden" name="tunnel_port" value="8080">
-      <button type="submit" class="btn <?= $panelRunning ? 'btn-d' : 'btn-p' ?>">
-        <i class="fas <?= $panelRunning ? 'fa-stop' : 'fa-play' ?>"></i>
-        <?= $panelRunning ? 'Stop Tunnel' : 'Start Tunnel' ?>
-      </button>
-    </form>
-    <?php if ($panelRunning && $panelUrl): ?>
-    <a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" class="btn btn-p"><i class="fas fa-external-link-alt"></i> Open Panel via Tunnel</a>
-    <?php endif; ?>
+    <div class="df ac g2">
+      <form method="post" style="display:inline">
+        <?= csrf() ?>
+        <input type="hidden" name="action" value="<?= $panelRunning ? 'cf_tunnel_stop' : 'cf_tunnel_start' ?>">
+        <input type="hidden" name="site" value="_panel">
+        <input type="hidden" name="tunnel_port" value="8080">
+        <button type="submit" class="btn <?= $panelRunning ? 'btn-d' : 'btn-p' ?>">
+          <i class="fas <?= $panelRunning ? 'fa-stop' : 'fa-play' ?>"></i>
+          <?= $panelRunning ? 'Stop Tunnel' : 'Start Tunnel' ?>
+        </button>
+      </form>
+      <?php if ($panelRunning && $panelUrl): ?>
+      <a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" class="btn btn-p"><i class="fas fa-external-link-alt"></i> Open Panel via Tunnel</a>
+      <?php endif; ?>
+    </div>
   </div>
 </div>
 
-<div class="sec" style="margin-top:16px">
+<div class="sec" style="flex:1 1 calc(50% - 12px);min-width:280px;margin-top:0">
   <div class="df jb ac fw g2 mb2">
     <div class="st" style="margin-bottom:0">Change Password</div>
   </div>
@@ -255,4 +258,5 @@ $art = [
     }
   }
   </script>
+</div>
 </div>
