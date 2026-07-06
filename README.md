@@ -21,10 +21,10 @@ bash <(curl -fsSL https://sayfullahsayeb.github.io/mobile-server/install.sh)
 
 | Command | Action |
 |---------|--------|
-| `mobile-server start` | Start all services |
-| `mobile-server stop` | Stop all services |
-| `mobile-server restart` | Restart all services |
-| `mobile-server status` | Check running status |
-| `mobile-server update` | Update system |
+| `ms start` | Start all services |
+| `ms stop` | Stop all services |
+| `ms restart` | Restart all services |
+| `ms status` | Check running status |
+| `ms update` | Update system |
 
-Open `http://<device-ip>:8080` for the status dashboard, or `http://<device-ip>:8080/control.php` (password: `admin`) for the full control panel.
+Open `http://<device-ip>:8080` for the Control Panel.

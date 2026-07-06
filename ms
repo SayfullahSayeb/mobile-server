@@ -44,7 +44,7 @@ case "${1:-}" in
     update)
         HOME_DIR="$HOME"
         TARGET_DIR="$HOME_DIR/server/sites/default/public_html"
-        TMP_DIR="$(mktemp -d 2>/dev/null || echo "/tmp/mobile-server-update")"
+        TMP_DIR="$(mktemp -d 2>/dev/null || echo "/tmp/ms-update")"
         REPO_URL="https://github.com/SayfullahSayeb/mobile-server.git"
         HASH_FILE="$HOME_DIR/server/configs/.update_hash"
 
@@ -76,10 +76,10 @@ case "${1:-}" in
                 printf "  \xE2\x9C\x93 Synced %s\n" "$base"
             done
 
-            # Update CLI script
-            CLI_DEST="$PREFIX/bin/mobile-server"
-            if [ -f "$TMP_DIR/mobile-server" ]; then
-                cp "$TMP_DIR/mobile-server" "$CLI_DEST" 2>/dev/null
+            # Update CLI
+            CLI_DEST="$PREFIX/bin/ms"
+            if [ -f "$TMP_DIR/ms" ]; then
+                cp "$TMP_DIR/ms" "$CLI_DEST" 2>/dev/null
                 chmod +x "$CLI_DEST" 2>/dev/null
                 printf "  \xE2\x9C\x93 Updated CLI\n"
             fi
@@ -94,7 +94,7 @@ case "${1:-}" in
         fi
         ;;
     *)
-        echo "Usage: mobile-server {start|stop|restart|status|update}"
+        echo "Usage: ms {start|stop|restart|status|update}"
         exit 1
         ;;
 esac

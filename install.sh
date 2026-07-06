@@ -106,11 +106,11 @@ download_file "https://sayfullahsayeb.github.io/mobile-server/index.php" \
 download_file "https://sayfullahsayeb.github.io/mobile-server/control.php" \
     ~/server/sites/default/public_html/control.php
 
-download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/mobile-server" \
-    "$PREFIX/bin/mobile-server"
+download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/ms" \
+    "$PREFIX/bin/ms"
 
-if [ -f "$PREFIX/bin/mobile-server" ]; then
-    chmod +x "$PREFIX/bin/mobile-server"
+if [ -f "$PREFIX/bin/ms" ]; then
+    chmod +x "$PREFIX/bin/ms"
 fi
 
 echo "[*] Downloading library files..."
