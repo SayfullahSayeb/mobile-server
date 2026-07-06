@@ -5,18 +5,23 @@ Turn your Android phone into a web server. Runs **Nginx + PHP-FPM + MariaDB** in
 ## What you can do
 
 - Host PHP sites directly from your phone
-- Create virtual hosts with custom domains and ports (like Laragon)
 - One-click WordPress installation with auto database setup
-- Browse and edit files using the built-in **Tiny File Manager**
-- Web terminal via ttyd on port 7681
+- Share your local development site with the world using built-in Cloudflared tunnels
+- Access your Termux terminal from any web browser
 - Full control panel accessible from any browser on the same network
 
-## Install
+## Prerequisites
+
+Install **Termux** first (Google Play version is outdated):
+
+- **F-Droid:** https://f-droid.org/en/packages/com.termux/
+- **GitHub Releases:** https://github.com/termux/termux-app/releases
+
+After installing Termux, open it and run:
 
 ```bash
 bash <(curl -fsSL https://sayfullahsayeb.github.io/mobile-server/install.sh)
 ```
-
 ## Usage
 
 | Command | Action |
@@ -27,5 +32,5 @@ bash <(curl -fsSL https://sayfullahsayeb.github.io/mobile-server/install.sh)
 | `ms status` | Check running status |
 | `ms update` | Update system |
 
-Open `http://<device-ip>:8080` for the Control Panel.
-Open `http://<device-ip>:7681` for the Web Terminal (ttyd).
+- Open `http://<device-ip>:8080` for the Control Panel.
+- Open `http://<device-ip>:7681` for the Web Terminal (ttyd).
