@@ -1,7 +1,7 @@
 <div class="df jb ac fw g2 mb4">
   <div class="st" style="margin-bottom:0">Service Status</div>
   <div class="df ac g2 fw">
-    <a href="/terminal" class="btn btn-s btn-p"><i class="fas fa-sync-alt"></i> Update</a>
+    <a href="/terminal?run=ms%20update" class="btn btn-s btn-p"><i class="fas fa-sync-alt"></i> Update</a>
     <form method="post" style="display:inline">
       <?= csrf() ?>
       <input type="hidden" name="action" value="restart_all">
