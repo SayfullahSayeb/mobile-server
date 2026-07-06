@@ -170,73 +170,89 @@ $art = [
     <?php foreach ($data as $k => $v): ?>
     <div class="sys-line"><span class="sys-key"><?= htmlspecialchars($k) ?>:</span><span class="sys-val"><?= htmlspecialchars($v) ?></span></div>
     <?php endforeach; ?>
-</div>
+  </div>
 </div>
 
-<div class="sec">
-  <div class="df jb ac fw g2 mb2">
-    <div class="st" style="margin-bottom:0">Tunnel</div>
-  </div>
-  <?php
-  $cfTunnelsSys = cfTunnelsLoad();
-  $panelTunnel = $cfTunnelsSys['_panel'] ?? null;
-  $panelRunning = false;
-  $panelUrl = '';
-  if ($panelTunnel && !empty($panelTunnel['pid'])) {
-      exec("kill -0 " . (int)$panelTunnel['pid'] . " 2>/dev/null", $null, $rc);
-      $panelRunning = $rc === 0;
-      $panelUrl = $panelTunnel['url'] ?? '';
-      if (!$panelUrl && $panelRunning) {
-          $logFile = LOG_DIR . '/cf_tunnel__panel.log';
-          if (is_file($logFile)) {
-              $content = @file_get_contents($logFile);
-              if (preg_match('/https:\/\/[a-z0-9-]+\.trycloudflare\.com/', $content, $m)) {
-                  $panelUrl = $m[0];
-                  $cfTunnelsSys['_panel']['url'] = $panelUrl;
-                  cfTunnelsSave($cfTunnelsSys);
-              }
-          }
-      }
-      if (!$panelRunning) @unlink(LOG_DIR . '/cf_tunnel__panel.log');
-  }
-  ?>
-  <div class="ig">
-    <div class="ii">
-      <div class="l">Status</div>
-      <div class="v">
-        <span class="bdg <?= $panelRunning ? 'on' : 'off' ?>"><span class="dt"></span><?= $panelRunning ? 'Running' : 'Stopped' ?></span>
-      </div>
+<hr style="border-color:var(--border);margin:16px 0">
+
+<div class="df jb ac fw g2 mb2">
+  <div class="st" style="margin-bottom:0">Tunnel</div>
+</div>
+<?php
+$cfTunnelsSys = cfTunnelsLoad();
+$panelTunnel = $cfTunnelsSys['_panel'] ?? null;
+$panelRunning = false;
+$panelUrl = '';
+if ($panelTunnel && !empty($panelTunnel['pid'])) {
+    exec("kill -0 " . (int)$panelTunnel['pid'] . " 2>/dev/null", $null, $rc);
+    $panelRunning = $rc === 0;
+    $panelUrl = $panelTunnel['url'] ?? '';
+    if (!$panelUrl && $panelRunning) {
+        $logFile = LOG_DIR . '/cf_tunnel__panel.log';
+        if (is_file($logFile)) {
+            $content = @file_get_contents($logFile);
+            if (preg_match('/https:\/\/[a-z0-9-]+\.trycloudflare\.com/', $content, $m)) {
+                $panelUrl = $m[0];
+                $cfTunnelsSys['_panel']['url'] = $panelUrl;
+                cfTunnelsSave($cfTunnelsSys);
+            }
+        }
+    }
+    if (!$panelRunning) @unlink(LOG_DIR . '/cf_tunnel__panel.log');
+}
+?>
+<div class="ig">
+  <div class="ii">
+    <div class="l">Status</div>
+    <div class="v">
+      <span class="bdg <?= $panelRunning ? 'on' : 'off' ?>"><span class="dt"></span><?= $panelRunning ? 'Running' : 'Stopped' ?></span>
     </div>
-    <?php if ($panelRunning && $panelUrl): ?>
-    <div class="ii"><div class="l">URL</div><div class="v"><a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" style="color:var(--blue);word-break:break-all"><?= htmlspecialchars($panelUrl) ?></a></div></div>
-    <?php endif; ?>
   </div>
-  <div class="df ac g2 mt2">
-    <form method="post" style="display:inline">
-      <?= csrf() ?>
-      <input type="hidden" name="action" value="<?= $panelRunning ? 'cf_tunnel_stop' : 'cf_tunnel_start' ?>">
-      <input type="hidden" name="site" value="_panel">
-      <input type="hidden" name="tunnel_port" value="8080">
-      <button type="submit" class="btn <?= $panelRunning ? 'btn-d' : 'btn-p' ?>">
-        <i class="fas <?= $panelRunning ? 'fa-stop' : 'fa-play' ?>"></i>
-        <?= $panelRunning ? 'Stop Tunnel' : 'Start Tunnel' ?>
-      </button>
-    </form>
-    <?php if ($panelRunning && $panelUrl): ?>
-    <a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" class="btn btn-p"><i class="fas fa-external-link-alt"></i> Open Panel via Tunnel</a>
-    <?php endif; ?>
-  </div>
+  <?php if ($panelRunning && $panelUrl): ?>
+  <div class="ii"><div class="l">URL</div><div class="v"><a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" style="color:var(--blue);word-break:break-all"><?= htmlspecialchars($panelUrl) ?></a></div></div>
+  <?php endif; ?>
+</div>
+<div class="df ac g2 mt2">
+  <form method="post" style="display:inline">
+    <?= csrf() ?>
+    <input type="hidden" name="action" value="<?= $panelRunning ? 'cf_tunnel_stop' : 'cf_tunnel_start' ?>">
+    <input type="hidden" name="site" value="_panel">
+    <input type="hidden" name="tunnel_port" value="8080">
+    <button type="submit" class="btn <?= $panelRunning ? 'btn-d' : 'btn-p' ?>">
+      <i class="fas <?= $panelRunning ? 'fa-stop' : 'fa-play' ?>"></i>
+      <?= $panelRunning ? 'Stop Tunnel' : 'Start Tunnel' ?>
+    </button>
+  </form>
+  <?php if ($panelRunning && $panelUrl): ?>
+  <a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" class="btn btn-p"><i class="fas fa-external-link-alt"></i> Open Panel via Tunnel</a>
+  <?php endif; ?>
 </div>
 
-<div class="sec" style="margin-top:16px">
-  <div class="df jb ac fw g2 mb2">
-    <div class="st" style="margin-bottom:0">Change Password</div>
-  </div>
-  <form method="post" class="df ac g2 mt2" style="flex-wrap:wrap">
-    <?= csrf() ?>
-    <input type="hidden" name="action" value="change_password">
-    <input type="password" name="new_password" placeholder="New password" required minlength="4" style="flex:1;min-width:160px;padding:10px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:14px">
-    <button type="submit" class="btn btn-p"><i class="fas fa-key"></i> Change</button>
-  </form>
+<hr style="border-color:var(--border);margin:16px 0">
+
+<div class="df jb ac fw g2 mb2">
+  <div class="st" style="margin-bottom:0">Change Password</div>
 </div>
+<form method="post" class="df ac g2" style="flex-wrap:wrap">
+  <?= csrf() ?>
+  <input type="hidden" name="action" value="change_password">
+  <div style="position:relative;flex:1;min-width:160px">
+    <input type="password" name="new_password" id="new-pass" placeholder="New password" required minlength="4" style="width:100%;padding:10px 40px 10px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:14px;box-sizing:border-box">
+    <i id="pass-toggle" class="fas fa-eye" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;color:var(--text3);font-size:16px" onclick="togglePass()"></i>
+  </div>
+  <button type="submit" class="btn btn-p"><i class="fas fa-key"></i> Change</button>
+</form>
+<script>
+function togglePass() {
+  var inp = document.getElementById('new-pass');
+  var icon = document.getElementById('pass-toggle');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    icon.className = 'fas fa-eye-slash';
+  } else {
+    inp.type = 'password';
+    icon.className = 'fas fa-eye';
+  }
+}
+</script>
 </div>

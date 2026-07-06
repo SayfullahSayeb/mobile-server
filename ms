@@ -36,11 +36,10 @@ case "${1:-}" in
         "$0" start
         ;;
     status)
-        IP=""
-        for iface in wlan0 eth0 uap0 wlan1 rmnet0 cc0 rndis0 rmnet_data0; do
-            IP=$(ip -4 -o addr show "$iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
-            [ -n "$IP" ] && break
-        done
+        IP=$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+        if [ -z "$IP" ] || [ "$IP" = "127.0.0.1" ]; then
+            IP=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
+        fi
         [ -z "$IP" ] && IP="127.0.0.1"
 
         echo "╔╦╗╔═╗╔╗ ╦╦ ╦  ╔═╗   ╔═╗╔═╗╦═╗╦  ╦╔═╗╦═╗"

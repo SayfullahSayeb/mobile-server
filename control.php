@@ -505,19 +505,16 @@ if (isset($_GET['logout'])) {
 
 $tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? 'dashboard');
 
-// Detect device IP — scan all non-loopback interfaces
+// Detect device IP
 $ip_addr = '';
-@exec("ip -4 -o addr show 2>/dev/null | awk '{print $2,$4}'", $ip_out, $ip_rc);
-if ($ip_rc === 0) {
-    foreach ($ip_out ?? [] as $line) {
-        $parts = explode(' ', $line);
-        if (count($parts) < 2) continue;
-        $iface = $parts[0];
-        $addr = explode('/', $parts[1])[0];
-        if ($iface !== 'lo' && $addr !== '127.0.0.1' && filter_var($addr, FILTER_VALIDATE_IP)) {
-            $ip_addr = $addr;
-            break;
-        }
+@exec("ip -4 -o addr show wlan0 2>/dev/null | awk '{print \$4}' | cut -d/ -f1", $ip_out, $ip_rc);
+if ($ip_rc === 0 && !empty($ip_out[0]) && $ip_out[0] !== '127.0.0.1' && filter_var($ip_out[0], FILTER_VALIDATE_IP)) {
+    $ip_addr = $ip_out[0];
+}
+if (!$ip_addr) {
+    @exec("ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print \$2}'", $if_out);
+    if (!empty($if_out[0]) && $if_out[0] !== '127.0.0.1' && filter_var($if_out[0], FILTER_VALIDATE_IP)) {
+        $ip_addr = $if_out[0];
     }
 }
 if (!$ip_addr) {

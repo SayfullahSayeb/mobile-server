@@ -100,8 +100,13 @@ $CONFIG = '{"lang":"en","error_reporting":false,"show_hidden":true,"hide_Cols":f
 CFG
 [ -f ~/server/sites/default/public_html/filemanager/tinyfilemanager.php ] && echo "[*] Tiny File Manager ready." || echo "[!] Warning: File Manager download failed."
 
-download_file "https://sayfullahsayeb.github.io/mobile-server/index.php" \
-    ~/server/sites/default/public_html/index.php
+# Create index.php that redirects to control panel login
+cat > ~/server/sites/default/public_html/index.php <<'INDEXPHP'
+<?php
+header('Location: control.php');
+exit;
+INDEXPHP
+chmod 644 ~/server/sites/default/public_html/index.php 2>/dev/null || true
 
 download_file "https://sayfullahsayeb.github.io/mobile-server/control.php" \
     ~/server/sites/default/public_html/control.php
@@ -260,13 +265,10 @@ echo "[*] Detecting IP..."
 USER=$(whoami)
 IP=""
 
-# Try common interface names
-for iface in wlan0 eth0 uap0 wlan1 rmnet0 cc0; do
-    IP=$(ip -4 -o addr show "$iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
-    [ -n "$IP" ] && break
-done
-
-# Fallback to hostname
+IP=$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+if [ -z "$IP" ] || [ "$IP" = "127.0.0.1" ]; then
+    IP=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
+fi
 if [ -z "$IP" ]; then
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 fi
