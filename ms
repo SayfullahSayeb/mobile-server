@@ -5,7 +5,7 @@ case "${1:-}" in
         echo "Starting Mobile Server..."
         if pgrep nginx >/dev/null 2>&1; then echo "  Nginx      Already running"; elif nginx -t >/dev/null 2>&1; then nginx && echo "  Nginx      Running" || echo "  Nginx      Failed"; else echo "  Nginx      Config error — run 'nginx -t'"; fi
         if pgrep php-fpm >/dev/null 2>&1; then echo "  PHP-FPM    Already running"; else php-fpm 2>/dev/null && echo "  PHP-FPM    Running" || echo "  PHP-FPM    Failed"; fi
-        if pgrep mariadbd >/dev/null 2>&1; then echo "  MariaDB    Already running"; else mariadbd-safe >/dev/null 2>&1 & sleep 2; if pgrep mariadbd >/dev/null 2>&1; then echo "  MariaDB    Running"; else echo "  MariaDB    Failed"; fi; fi
+        if pgrep mariadbd >/dev/null 2>&1 || pgrep mysqld >/dev/null 2>&1; then echo "  MariaDB    Already running"; else mariadbd-safe >/dev/null 2>&1 & sleep 2; if pgrep mariadbd >/dev/null 2>&1 || pgrep mysqld >/dev/null 2>&1; then echo "  MariaDB    Running"; else echo "  MariaDB    Failed"; fi; fi
         if pgrep ttyd >/dev/null 2>&1; then echo "  ttyd       Already running"; else ttyd -W -p 7681 bash -l >/dev/null 2>&1 & sleep 1; if pgrep ttyd >/dev/null 2>&1; then echo "  ttyd       Running"; else echo "  ttyd       Failed"; fi; fi
         ;;
     stop)
@@ -23,6 +23,11 @@ case "${1:-}" in
                 printf "  %-10s  Not running\n" "$svc"
             fi
         done
+        # mariadbd-safe spawns mysqld as the actual server process
+        if pgrep mysqld >/dev/null 2>&1; then
+            pkill -9 mysqld 2>/dev/null || true
+            printf "  %-10s  Stopped\n" "mysqld"
+        fi
         echo "Mobile Server stopped"
         ;;
     restart)
@@ -31,15 +36,42 @@ case "${1:-}" in
         "$0" start
         ;;
     status)
-        echo "Mobile Server Status"
-        echo "--------------------"
-        for svc in nginx php-fpm mariadbd ttyd; do
+        IP=""
+        for iface in wlan0 eth0 uap0 wlan1 rmnet0 cc0 rndis0 rmnet_data0; do
+            IP=$(ip -4 -o addr show "$iface" 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+            [ -n "$IP" ] && break
+        done
+        [ -z "$IP" ] && IP="127.0.0.1"
+
+        echo "╔╦╗╔═╗╔╗ ╦╦ ╦  ╔═╗   ╔═╗╔═╗╦═╗╦  ╦╔═╗╦═╗"
+        echo "║║║║ ║╠╩╗║║ ║  ║╣    ╚═╗║╣ ╠╦╝╚╗╔╝║╣ ╠╦╝"
+        echo "╩ ╩╚═╝╚═╝╩╩ ╩═╝╚═╝   ╚═╝╚═╝╩╚═ ╚╝ ╚═╝╩╚═"
+        echo ""
+        echo "========================================"
+        echo "     Mobile Server Status"
+        echo "========================================"
+        echo ""
+        echo "Terminal:"
+        echo "  http://${IP}:7681"
+        echo ""
+        echo "Website:"
+        echo "  http://${IP}:8080"
+        echo ""
+        echo "Services:"
+        for svc in nginx php-fpm ttyd; do
             if pgrep "$svc" >/dev/null 2>&1; then
                 printf "  %-10s  Running\n" "$svc"
             else
                 printf "  %-10s  Stopped\n" "$svc"
             fi
         done
+        if pgrep mariadbd >/dev/null 2>&1 || pgrep mysqld >/dev/null 2>&1; then
+            printf "  %-10s  Running\n" "MariaDB"
+        else
+            printf "  %-10s  Stopped\n" "MariaDB"
+        fi
+        echo ""
+        echo "========================================"
         ;;
     update)
         HOME_DIR="$HOME"

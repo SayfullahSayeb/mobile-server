@@ -126,7 +126,7 @@ download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/ma
 echo "[*] Downloading panel files..."
 
 mkdir -p ~/server/sites/default/public_html/panel
-for panel_file in login.php header.php footer.php dashboard.php files.php sites.php update.php control.css terminal.php logs.php settings.php system.php update_stream.php; do
+for panel_file in login.php header.php footer.php dashboard.php files.php sites.php update.php control.css terminal.php logs.php system.php update_stream.php; do
     download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/panel/$panel_file" \
         ~/server/sites/default/public_html/panel/$panel_file
 done

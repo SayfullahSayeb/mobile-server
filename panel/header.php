@@ -54,18 +54,15 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
     <a href="?tab=system" class="nav-i <?= $tab==='system'?'act':'' ?>">
       <span class="ni"><i class="fas fa-microchip"></i></span><span class="nl">System</span>
     </a>
-    <a href="?tab=settings" class="nav-i <?= $tab==='settings'?'act':'' ?>">
-      <span class="ni"><i class="fas fa-cog"></i></span><span class="nl">Settings</span>
-    </a>
   </div>
   <div class="sb-foot">
     <a href="#" class="sb-logout" id="themeToggle" onclick="toggleTheme();return false"><i class="fas fa-sun"></i> <span id="themeLabel">Light Mode</span></a>
     <a href="?logout=1" class="sb-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
-    <div class="sb-ver">Mobile Server v1.0.63</div>
+    <div class="sb-ver">Mobile Server v1.0.89</div>
   </div>
 </div>
-<div class="main">
-  <div class="topbar">
+<div class="main" style="display:flex;flex-direction:column;min-height:100vh">
+  <div class="topbar" style="flex-shrink:0">
     <button class="hamburger" onclick="toggleSidebar()" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
     <div class="tbl">
       <div class="tb-title"><?= ucfirst($tab) ?></div>
@@ -78,7 +75,7 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
       </div>
     </div>
   </div>
-  <div class="page">
+  <div class="page" style="flex:1">
 <?php if (!empty($flash)): ?>
 <div class="flash <?= $flash[0]==='success'?'suc':'err' ?>"><?= $flash[1] ?></div>
 <?php endif; ?>

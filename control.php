@@ -505,9 +505,15 @@ if (isset($_GET['logout'])) {
 
 $tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? 'dashboard');
 
-// Detect device IP (one fast command, PHP fallback)
-@exec("ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1", $ip_out, $ip_rc);
-$ip_addr = ($ip_rc === 0 && !empty($ip_out)) ? $ip_out[0] : gethostbyname(gethostname());
+// Detect device IP — try common interface names
+$ip_addr = '';
+foreach (['wlan0','eth0','uap0','wlan1','rmnet0','cc0','rndis0','rmnet_data0'] as $iface) {
+    @exec("ip -4 -o addr show $iface 2>/dev/null | awk '{print $4}' | cut -d/ -f1", $ip_out, $ip_rc);
+    if ($ip_rc === 0 && !empty($ip_out[0])) { $ip_addr = $ip_out[0]; break; }
+}
+if (!$ip_addr) {
+    $ip_addr = gethostbyname(gethostname());
+}
 if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP)) {
     $ip_addr = 'localhost';
 }

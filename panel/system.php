@@ -26,7 +26,7 @@ $shell_path = getenv('SHELL') ?: 'bash';
 if ($cache && isset($cache['time']) && (time() - $cache['time']) < $cacheTtl) {
     $data = $cache['data'];
 } else {
-    @set_time_limit(3);
+    @set_time_limit(20);
 
     $os = 'Android'; $os_codename = ''; $os_sdk = ''; $device_man = ''; $device_model = '';
     $kernel = 'N/A'; $arch = 'N/A';
@@ -94,30 +94,18 @@ if ($cache && isset($cache['time']) && (time() - $cache['time']) < $cacheTtl) {
     }
 
     $pkg_count = '?';
-    $nginx_ver_s = 'N/A'; $phpfpm_ver_s = 'N/A'; $mariadb_ver_s = 'N/A';
-    $cloudflared_ver_s = 'N/A'; $ttyd_ver_s = 'N/A';
-    exec('echo ___PKG___; ls /data/data/com.termux/files/usr/var/lib/dpkg/info/*.list 2>/dev/null | wc -l; '
-        . 'echo ___N___; command -v nginx >/dev/null 2>&1 && nginx -v 2>&1 || true; '
-        . 'echo ___P___; command -v php-fpm >/dev/null 2>&1 && php-fpm -v 2>&1 | head -1 || true; '
-        . 'echo ___M___; command -v mariadb >/dev/null 2>&1 && mariadb --version 2>&1 | head -1 || true; '
-        . 'echo ___C___; command -v cloudflared >/dev/null 2>&1 && cloudflared --version 2>&1 | head -1 || true; '
-        . 'echo ___T___; command -v ttyd >/dev/null 2>&1 && ttyd --version 2>&1 | head -1 || true', $combined, $rc);
-    $section = '';
-    foreach ($combined as $line) {
-        if ($line === '___PKG___') { $section = 'pkg'; continue; }
-        if ($line === '___N___') { $section = 'n'; continue; }
-        if ($line === '___P___') { $section = 'p'; continue; }
-        if ($line === '___M___') { $section = 'm'; continue; }
-        if ($line === '___C___') { $section = 'c'; continue; }
-        if ($line === '___T___') { $section = 't'; continue; }
-        if ($section === 'pkg') { $pkg_count = trim($line); continue; }
-        $v = preg_match('/(\d+\.\d+[\.\d]*)/', $line, $mv) ? $mv[1] : 'N/A';
-        if ($section === 'n') $nginx_ver_s = $v;
-        if ($section === 'p') $phpfpm_ver_s = $v;
-        if ($section === 'm') $mariadb_ver_s = $v;
-        if ($section === 'c') $cloudflared_ver_s = $v;
-        if ($section === 't') $ttyd_ver_s = $v;
-    }
+    $pkg_count = trim(@shell_exec('find /data/data/com.termux/files/usr/var/lib/dpkg/info -name "*.list" 2>/dev/null | wc -l') ?? '?') ?: '?';
+
+    $to = @shell_exec('command -v timeout 2>/dev/null') ? 'timeout 3' : '';
+    $ver = function($bin) use ($to) {
+        $o = @shell_exec(($to ? "$to " : '') . "command -v $bin >/dev/null 2>&1 && $bin --version 2>&1 | head -1" . ($to ? '' : ' 2>/dev/null'));
+        return $o && preg_match('/(\d+\.\d+[\.\d]*)/', $o, $m) ? $m[1] : 'N/A';
+    };
+    $nginx_ver_s = $ver('nginx');
+    $phpfpm_ver_s = $ver('php-fpm');
+    $mariadb_ver_s = $ver('mariadb');
+    $cloudflared_ver_s = $ver('cloudflared');
+    $ttyd_ver_s = $ver('ttyd');
 
     $device = trim("$device_man $device_model") ?: 'N/A';
     $os_str = "Android $os" . ($os_codename ? " ($os_codename)" : '');
@@ -182,6 +170,61 @@ $art = [
     <?php foreach ($data as $k => $v): ?>
     <div class="sys-line"><span class="sys-key"><?= htmlspecialchars($k) ?>:</span><span class="sys-val"><?= htmlspecialchars($v) ?></span></div>
     <?php endforeach; ?>
+</div>
+</div>
+
+<div class="sec">
+  <div class="df jb ac fw g2 mb2">
+    <div class="st" style="margin-bottom:0">Tunnel</div>
+  </div>
+  <?php
+  $cfTunnelsSys = cfTunnelsLoad();
+  $panelTunnel = $cfTunnelsSys['_panel'] ?? null;
+  $panelRunning = false;
+  $panelUrl = '';
+  if ($panelTunnel && !empty($panelTunnel['pid'])) {
+      exec("kill -0 " . (int)$panelTunnel['pid'] . " 2>/dev/null", $null, $rc);
+      $panelRunning = $rc === 0;
+      $panelUrl = $panelTunnel['url'] ?? '';
+      if (!$panelUrl && $panelRunning) {
+          $logFile = LOG_DIR . '/cf_tunnel__panel.log';
+          if (is_file($logFile)) {
+              $content = @file_get_contents($logFile);
+              if (preg_match('/https:\/\/[a-z0-9-]+\.trycloudflare\.com/', $content, $m)) {
+                  $panelUrl = $m[0];
+                  $cfTunnelsSys['_panel']['url'] = $panelUrl;
+                  cfTunnelsSave($cfTunnelsSys);
+              }
+          }
+      }
+      if (!$panelRunning) @unlink(LOG_DIR . '/cf_tunnel__panel.log');
+  }
+  ?>
+  <div class="ig">
+    <div class="ii">
+      <div class="l">Status</div>
+      <div class="v">
+        <span class="bdg <?= $panelRunning ? 'on' : 'off' ?>"><span class="dt"></span><?= $panelRunning ? 'Running' : 'Stopped' ?></span>
+      </div>
+    </div>
+    <?php if ($panelRunning && $panelUrl): ?>
+    <div class="ii"><div class="l">URL</div><div class="v"><a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" style="color:var(--blue);word-break:break-all"><?= htmlspecialchars($panelUrl) ?></a></div></div>
+    <?php endif; ?>
+  </div>
+  <div class="df ac g2 mt2">
+    <form method="post" style="display:inline">
+      <?= csrf() ?>
+      <input type="hidden" name="action" value="<?= $panelRunning ? 'cf_tunnel_stop' : 'cf_tunnel_start' ?>">
+      <input type="hidden" name="site" value="_panel">
+      <input type="hidden" name="tunnel_port" value="8080">
+      <button type="submit" class="btn <?= $panelRunning ? 'btn-d' : 'btn-p' ?>">
+        <i class="fas <?= $panelRunning ? 'fa-stop' : 'fa-play' ?>"></i>
+        <?= $panelRunning ? 'Stop Tunnel' : 'Start Tunnel' ?>
+      </button>
+    </form>
+    <?php if ($panelRunning && $panelUrl): ?>
+    <a href="<?= htmlspecialchars($panelUrl) ?>" target="_blank" class="btn btn-p"><i class="fas fa-external-link-alt"></i> Open Panel via Tunnel</a>
+    <?php endif; ?>
   </div>
 </div>
 </div>

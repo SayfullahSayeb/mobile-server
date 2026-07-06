@@ -32,7 +32,7 @@ for (var i = 0; i < navLinks.length; i++) {
     navLinks[i].addEventListener('click', closeSidebar);
 }
 </script>
-<footer class="tc tm ts" style="padding:12px 0 4px">Mobile Server — Nginx &bull; PHP-FPM &bull; MariaDB</footer>
+<footer class="tc tm ts" style="padding:12px 0 4px;flex-shrink:0">Mobile Server — Nginx &bull; PHP-FPM &bull; MariaDB</footer>
 </div>
 </body>
 </html>
