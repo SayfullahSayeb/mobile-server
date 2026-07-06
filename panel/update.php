@@ -5,7 +5,7 @@
     <div class="st2" style="color:var(--text);margin-top:0">Files to Update</div>
     <ul style="color:var(--text2);line-height:1.8;padding-left:18px">
       <li>index.php — public status dashboard</li>
-      <li>control.php — admin control panel</li>
+      <li>index.php — admin control panel</li>
       <li>panel/*.php — panel UI files</li>
       <li>filemanager/* — file manager</li>
       <li>lib/*.php — core libraries</li>

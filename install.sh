@@ -100,16 +100,8 @@ $CONFIG = '{"lang":"en","error_reporting":false,"show_hidden":true,"hide_Cols":f
 CFG
 [ -f ~/server/sites/default/public_html/filemanager/tinyfilemanager.php ] && echo "[*] Tiny File Manager ready." || echo "[!] Warning: File Manager download failed."
 
-# Create index.php that redirects to control panel login
-cat > ~/server/sites/default/public_html/index.php <<'INDEXPHP'
-<?php
-header('Location: control.php');
-exit;
-INDEXPHP
-chmod 644 ~/server/sites/default/public_html/index.php 2>/dev/null || true
-
-download_file "https://sayfullahsayeb.github.io/mobile-server/control.php" \
-    ~/server/sites/default/public_html/control.php
+download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/index.php" \
+    ~/server/sites/default/public_html/index.php
 
 download_file "https://raw.githubusercontent.com/SayfullahSayeb/mobile-server/main/ms" \
     "$PREFIX/bin/ms"

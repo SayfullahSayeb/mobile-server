@@ -1,7 +1,7 @@
 <?php
 session_start();
 if (empty($_SESSION['authenticated'])) {
-    header('Location: ../control.php');
+    header('Location: ../index.php');
     exit;
 }
 require_once __DIR__ . '/tinyfilemanager.php';
