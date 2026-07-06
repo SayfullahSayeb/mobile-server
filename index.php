@@ -79,6 +79,31 @@ function panelLog(string $message): void {
 
 require_once __DIR__ . '/lib/WordPressInstaller.php';
 
+// Create phpMyAdmin symlink
+$pmaSource = '/data/data/com.termux/files/usr/share/phpmyadmin';
+$pmaLink = __DIR__ . '/phpmyadmin';
+if (is_dir($pmaSource)) {
+    if (!is_link($pmaLink) && !file_exists($pmaLink)) {
+        @symlink($pmaSource, $pmaLink);
+    }
+    $pmaConfig = $pmaSource . '/config.inc.php';
+    if (!is_file($pmaConfig)) {
+        $blowfish = bin2hex(random_bytes(16));
+        $config = <<<PMA
+<?php
+\$cfg['blowfish_secret'] = '$blowfish';
+\$i = 0;
+\$i++;
+\$cfg['Servers'][\$i]['auth_type'] = 'cookie';
+\$cfg['Servers'][\$i]['host'] = '127.0.0.1';
+\$cfg['Servers'][\$i]['port'] = '3306';
+\$cfg['Servers'][\$i]['compress'] = false;
+\$cfg['Servers'][\$i]['AllowNoPassword'] = true;
+PMA;
+        @file_put_contents($pmaConfig, $config);
+    }
+}
+
 if (isset($_GET['tab']) && $_GET['tab'] === 'update' && isset($_GET['action']) && $_GET['action'] === 'stream') {
     include __DIR__ . '/panel/update_stream.php';
     exit;
@@ -507,7 +532,9 @@ if (isset($_GET['logout'])) {
 $tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? '');
 if (!$tab) {
     $pathTab = trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
-    $tab = preg_replace('/[^a-z]/', '', $pathTab);
+    $pathTab = preg_replace('/[^a-z]/', '', $pathTab);
+    $validTabs = ['dashboard','sites','terminal','logs','files','system','update'];
+    if (in_array($pathTab, $validTabs, true)) $tab = $pathTab;
 }
 if (!$tab) $tab = 'dashboard';
 
