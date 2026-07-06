@@ -36,10 +36,8 @@ case "${1:-}" in
         "$0" start
         ;;
     status)
-        IP=$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
-        if [ -z "$IP" ] || [ "$IP" = "127.0.0.1" ]; then
-            IP=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
-        fi
+        IP=$(ifconfig 2>/dev/null | awk '/^[a-z]/{i=$1} /inet /{if(i!="lo:" && $2!="127.0.0.1" && $2~/^192\.168\./){print $2;exit}}')
+        [ -z "$IP" ] && IP=$(ifconfig 2>/dev/null | awk '/^[a-z]/{i=$1} /inet /{if(i!="lo:" && $2!="127.0.0.1"){print $2;exit}}')
         [ -z "$IP" ] && IP="127.0.0.1"
 
         echo "╔╦╗╔═╗╔╗ ╦╦ ╦  ╔═╗   ╔═╗╔═╗╦═╗╦  ╦╔═╗╦═╗"
@@ -98,34 +96,46 @@ case "${1:-}" in
             exit 0
         fi
 
-        if git clone --depth 1 "$REPO_URL" "$TMP_DIR" 2>/dev/null; then
-            echo "  Cloned repository."
-            echo "$LATEST_HASH" > "$HASH_FILE"
-
-            # Copy all files from repo (skip .git)
-            for item in "$TMP_DIR"/* "$TMP_DIR"/.[!.]*; do
-                base="$(basename "$item")"
-                [ "$base" = ".git" ] || [ "$base" = "." ] || [ "$base" = ".." ] && continue
-                cp -r "$item" "$TARGET_DIR/" 2>/dev/null
-                printf "  \xE2\x9C\x93 Synced %s\n" "$base"
-            done
-
-            # Update CLI
-            CLI_DEST="$PREFIX/bin/ms"
-            if [ -f "$TMP_DIR/ms" ]; then
-                cp "$TMP_DIR/ms" "$CLI_DEST" 2>/dev/null
-                chmod +x "$CLI_DEST" 2>/dev/null
-                printf "  \xE2\x9C\x93 Updated CLI\n"
-            fi
-
-            rm -rf "$TMP_DIR" 2>/dev/null
-            echo
-            echo "Update completed successfully."
-        else
+        if ! git clone --depth 1 "$REPO_URL" "$TMP_DIR" 2>/dev/null; then
             echo "[!] Failed to clone repository. Check internet connection."
             rm -rf "$TMP_DIR" 2>/dev/null
             exit 1
         fi
+
+        echo "  Cloned repository."
+        echo "$LATEST_HASH" > "$HASH_FILE"
+
+        # Remove files from target not in repo (sync deleted files)
+        KEEP_FILE="$TMP_DIR/.keep_list"
+        ls -A1 "$TMP_DIR" > "$KEEP_FILE" 2>/dev/null
+        for f in "$TARGET_DIR"/* "$TARGET_DIR"/.[!.]*; do
+            [ -e "$f" ] || continue
+            b="$(basename "$f")"
+            [ "$b" = "." ] || [ "$b" = ".." ] || [ "$b" = ".git" ] && continue
+            grep -qxF "$b" "$KEEP_FILE" 2>/dev/null && continue
+            rm -rf "$f" 2>/dev/null
+            printf "  \xE2\x9C\x97 Removed %s\n" "$b"
+        done
+
+        # Copy all repo files to target
+        for f in "$TMP_DIR"/* "$TMP_DIR"/.[!.]*; do
+            [ -e "$f" ] || continue
+            b="$(basename "$f")"
+            [ "$b" = "." ] || [ "$b" = ".." ] || [ "$b" = ".git" ] && continue
+            cp -r "$f" "$TARGET_DIR/" 2>/dev/null
+            printf "  \xE2\x9C\x93 Synced %s\n" "$b"
+        done
+
+        # Update CLI binary
+        if [ -f "$TMP_DIR/ms" ]; then
+            cp "$TMP_DIR/ms" "$PREFIX/bin/ms" 2>/dev/null
+            chmod +x "$PREFIX/bin/ms" 2>/dev/null
+            printf "  \xE2\x9C\x93 Updated CLI\n"
+        fi
+
+        rm -rf "$TMP_DIR" 2>/dev/null
+        echo
+        echo "Update completed successfully."
         ;;
     *)
         echo "Usage: ms {start|stop|restart|status|update}"

@@ -265,13 +265,9 @@ echo "[*] Detecting IP..."
 USER=$(whoami)
 IP=""
 
-IP=$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
-if [ -z "$IP" ] || [ "$IP" = "127.0.0.1" ]; then
-    IP=$(ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print $2}')
-fi
-if [ -z "$IP" ]; then
-    IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-fi
+IP=$(ifconfig 2>/dev/null | awk '/^[a-z]/{i=$1} /inet /{if(i!="lo:" && $2!="127.0.0.1" && $2~/^192\.168\./){print $2;exit}}')
+[ -z "$IP" ] && IP=$(ifconfig 2>/dev/null | awk '/^[a-z]/{i=$1} /inet /{if(i!="lo:" && $2!="127.0.0.1"){print $2;exit}}')
+[ -z "$IP" ] && IP="127.0.0.1"
 
 if [ -z "$IP" ]; then
     IP="127.0.0.1"

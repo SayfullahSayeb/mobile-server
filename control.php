@@ -505,21 +505,13 @@ if (isset($_GET['logout'])) {
 
 $tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? 'dashboard');
 
-// Detect device IP
+// Detect device IP via ifconfig
 $ip_addr = '';
-@exec("ip -4 -o addr show wlan0 2>/dev/null | awk '{print \$4}' | cut -d/ -f1", $ip_out, $ip_rc);
-if ($ip_rc === 0 && !empty($ip_out[0]) && $ip_out[0] !== '127.0.0.1' && filter_var($ip_out[0], FILTER_VALIDATE_IP)) {
-    $ip_addr = $ip_out[0];
+@exec("ifconfig 2>/dev/null | awk '/^[a-z]/{i=\$1} /inet /{if(i!=\"lo:\" && \$2!=\"127.0.0.1\" && \$2~/^192\\.168\\./){print \$2;exit}}'", $ip_out);
+if (empty($ip_out[0])) {
+    @exec("ifconfig 2>/dev/null | awk '/^[a-z]/{i=\$1} /inet /{if(i!=\"lo:\" && \$2!=\"127.0.0.1\"){print \$2;exit}}'", $ip_out);
 }
-if (!$ip_addr) {
-    @exec("ifconfig wlan0 2>/dev/null | grep 'inet ' | awk '{print \$2}'", $if_out);
-    if (!empty($if_out[0]) && $if_out[0] !== '127.0.0.1' && filter_var($if_out[0], FILTER_VALIDATE_IP)) {
-        $ip_addr = $if_out[0];
-    }
-}
-if (!$ip_addr) {
-    $ip_addr = gethostbyname(gethostname());
-}
+$ip_addr = $ip_out[0] ?? '';
 if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP) || $ip_addr === '127.0.0.1') {
     $ip_addr = 'localhost';
 }
