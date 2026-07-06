@@ -15,6 +15,9 @@ function csrf(): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <title>Mobile Server</title>
+<link rel="icon" type="image/x-icon" href="panel/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="panel/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="panel/favicon-16x16.png">
 <link rel="stylesheet" href="panel/control.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script>
@@ -26,7 +29,7 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
 <div class="sb-overlay" onclick="toggleSidebar()"></div>
 <div class="sidebar" id="sidebar">
   <div class="sb-brand">
-    <div class="sb-logo">MS</div>
+    <div class="sb-logo"><img src="panel/favicon-32x32.png" alt="logo" style="width:22px;height:22px"></div>
     <div>
       <div class="sb-text">Mobile Server</div>
       <div class="sb-sub">Control Panel</div>

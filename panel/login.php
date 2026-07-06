@@ -4,13 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mobile Server - Login</title>
+<link rel="icon" type="image/x-icon" href="panel/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="panel/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="panel/favicon-16x16.png">
 <link rel="stylesheet" href="panel/control.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
 <div class="lp">
 <div class="lc">
-<div class="ll">MS</div>
+<div class="ll"><img src="panel/favicon-32x32.png" alt="logo" style="width:28px;height:28px"></div>
 <div class="lt">Mobile Server</div>
 <div class="lsu">Enter password to access the control panel</div>
 <?php if (!empty($login_err)): ?>
