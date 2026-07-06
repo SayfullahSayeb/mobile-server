@@ -18,8 +18,8 @@ function csrf(): string {
 <link rel="stylesheet" href="panel/control.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script>
-(function(){var t=localStorage.getItem('theme');if(t==='light'){document.documentElement.setAttribute('data-theme','light')};var l=document.getElementById('themeLabel');if(l){l.textContent=t==='light'?'Dark Mode':'Light Mode'}})()
-function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data-theme')==='light'?'dark':'light';h.setAttribute('data-theme',n);localStorage.setItem('theme',n);document.getElementById('themeToggle').innerHTML=(n==='light'?'<i class="fas fa-moon"></i>':'<i class="fas fa-sun"></i>')+' <span id="themeLabel">'+(n==='light'?'Dark Mode':'Light Mode')+'</span>'}
+(function(){var t=localStorage.getItem('theme');if(t==='dark'){document.documentElement.setAttribute('data-theme','dark')};var l=document.getElementById('themeLabel');if(l){l.textContent=t==='dark'?'Light Mode':'Dark Mode'}})()
+function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',n);localStorage.setItem('theme',n);document.getElementById('themeToggle').innerHTML=(n==='dark'?'<i class="fas fa-sun"></i>':'<i class="fas fa-moon"></i>')+' <span id="themeLabel">'+(n==='dark'?'Light Mode':'Dark Mode')+'</span>'}
 </script>
 </head>
 <body>
@@ -56,7 +56,7 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
     </a>
   </div>
   <div class="sb-foot">
-    <a href="#" class="sb-logout" id="themeToggle" onclick="toggleTheme();return false"><i class="fas fa-sun"></i> <span id="themeLabel">Light Mode</span></a>
+    <a href="#" class="sb-logout" id="themeToggle" onclick="toggleTheme();return false"><i class="fas fa-moon"></i> <span id="themeLabel">Dark Mode</span></a>
     <a href="?logout=1" class="sb-logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
     <div class="sb-ver">Mobile Server v1.0.89</div>
   </div>

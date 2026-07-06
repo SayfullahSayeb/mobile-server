@@ -1,41 +1,6 @@
 :root {
   --sidebar-w: 230px;
   --topbar-h: 54px;
-  --bg-body:#0b1120;
-  --bg-sidebar:#111827;
-  --bg-card:rgba(17,24,39,.75);
-  --bg-hover:rgba(55,65,81,.45);
-  --border:rgba(148,163,184,.08);
-  --text:#f1f5f9;
-  --text2:#94a3b8;
-  --text3:#64748b;
-  --blue:#3b82f6;
-  --green:#22c55e;
-  --red:#ef4444;
-  --orange:#f59e0b;
-  --purple:#8b5cf6;
-  --r:12px;
-  --rs:8px;
-  --inp-bg:rgba(15,23,42,.6);
-  --inp-border:rgba(51,65,85,.6);
-  --modal-bg:rgba(0,0,0,.6);
-  --lv-bg:rgba(15,23,42,.6);
-  --ii-bg:rgba(15,23,42,.5);
-  --ii-border:rgba(148,163,184,.06);
-  --topbar-bg:rgba(17,24,39,.85);
-  --lp-bg:linear-gradient(135deg,#0b1120 0%,#111827 50%,#0b1120 100%);
-  --lc-bg:rgba(17,24,39,.85);
-  --lc-shadow:0 25px 80px rgba(0,0,0,.5);
-  --hover-row:rgba(15,23,42,.4);
-  --scroll-thumb:#374151;
-  --di-bg:rgba(15,23,42,.4);
-  --sb-overlay:rgba(0,0,0,.5);
-  --wp-bg:rgba(15,23,42,.4);
-  --row-border:rgba(148,163,184,.06);
-  --modal-shadow:0 25px 60px rgba(0,0,0,.5);
-}
-
-[data-theme="light"] {
   --bg-body:#f1f5f9;
   --bg-sidebar:#ffffff;
   --bg-card:rgba(255,255,255,.85);
@@ -44,6 +9,13 @@
   --text:#1e293b;
   --text2:#475569;
   --text3:#94a3b8;
+  --blue:#3b82f6;
+  --green:#22c55e;
+  --red:#ef4444;
+  --orange:#f59e0b;
+  --purple:#8b5cf6;
+  --r:12px;
+  --rs:8px;
   --inp-bg:#ffffff;
   --inp-border:rgba(148,163,184,.4);
   --modal-bg:rgba(0,0,0,.3);
@@ -61,6 +33,39 @@
   --wp-bg:#ffffff;
   --row-border:rgba(148,163,184,.12);
   --modal-shadow:0 25px 60px rgba(0,0,0,.15);
+}
+
+[data-theme="dark"] {
+  --bg-body:#0d1117;
+  --bg-sidebar:#161b22;
+  --bg-card:rgba(22,27,34,.85);
+  --bg-hover:rgba(48,54,61,.5);
+  --border:rgba(48,54,61,.6);
+  --text:#e6edf3;
+  --text2:#8b949e;
+  --text3:#6e7681;
+  --blue:#58a6ff;
+  --green:#3fb950;
+  --red:#f85149;
+  --orange:#d29922;
+  --purple:#bc8cff;
+  --inp-bg:#0d1117;
+  --inp-border:#30363d;
+  --modal-bg:rgba(0,0,0,.7);
+  --lv-bg:#0d1117;
+  --ii-bg:#161b22;
+  --ii-border:rgba(48,54,61,.4);
+  --topbar-bg:rgba(22,27,34,.9);
+  --lp-bg:linear-gradient(135deg,#0d1117 0%,#161b22 50%,#0d1117 100%);
+  --lc-bg:#161b22;
+  --lc-shadow:0 25px 80px rgba(0,0,0,.5);
+  --hover-row:rgba(48,54,61,.3);
+  --scroll-thumb:#30363d;
+  --di-bg:#161b22;
+  --sb-overlay:rgba(0,0,0,.6);
+  --wp-bg:#161b22;
+  --row-border:rgba(48,54,61,.4);
+  --modal-shadow:0 25px 60px rgba(0,0,0,.5);
 }
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;margin:0}
