@@ -70,7 +70,12 @@ case "${1:-}" in
         else
             printf "  %-10s  Stopped\n" "MariaDB"
         fi
-        echo ""
+        PASS_FILE="$HOME/server/.panel_password"
+        if [ -f "$PASS_FILE" ]; then
+            echo "Panel Password:"
+            echo "  $(cat "$PASS_FILE")"
+            echo ""
+        fi
         echo "========================================"
         ;;
     update)
