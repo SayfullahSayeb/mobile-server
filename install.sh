@@ -178,10 +178,7 @@ if [ -f "$CONTROL_PASS_FILE" ]; then
     CONTROL_PASS=$(cat "$CONTROL_PASS_FILE")
     echo "[*] Using existing control panel password."
 else
-    CONTROL_PASS=$(tr -dc 'A-Za-z0-9' </dev/urandom 2>/dev/null | head -c 16)
-    if [ -z "$CONTROL_PASS" ]; then
-        CONTROL_PASS="admin$(date +%s)"
-    fi
+    CONTROL_PASS="changeme"
     echo "$CONTROL_PASS" > "$CONTROL_PASS_FILE" 2>/dev/null || true
     chmod 600 "$CONTROL_PASS_FILE" 2>/dev/null || true
 fi

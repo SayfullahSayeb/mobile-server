@@ -227,4 +227,16 @@ $art = [
     <?php endif; ?>
   </div>
 </div>
+
+<div class="sec" style="margin-top:16px">
+  <div class="df jb ac fw g2 mb2">
+    <div class="st" style="margin-bottom:0">Change Password</div>
+  </div>
+  <form method="post" class="df ac g2 mt2" style="flex-wrap:wrap">
+    <?= csrf() ?>
+    <input type="hidden" name="action" value="change_password">
+    <input type="password" name="new_password" placeholder="New password" required minlength="4" style="flex:1;min-width:160px;padding:10px 14px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:14px">
+    <button type="submit" class="btn btn-p"><i class="fas fa-key"></i> Change</button>
+  </form>
+</div>
 </div>

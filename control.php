@@ -943,6 +943,23 @@ if ($logged_in) {
                 $flash = ['success', 'Cloudflare tunnel stopped for ' . $site];
                 panelLog("CF tunnel stopped for $site");
             }
+        } elseif ($action === 'change_password') {
+            $newPass = $_POST['new_password'] ?? '';
+            if (strlen($newPass) < 4) {
+                $flash = ['error', 'Password must be at least 4 characters'];
+            } else {
+                $passFile = HOME_DIR . '/.panel_password';
+                $hash = password_hash($newPass, PASSWORD_BCRYPT);
+                $secret = "<?php\ndefine('CONTROL_PASSWORD_HASH', '$hash');\n";
+                $ok1 = @file_put_contents($passFile, $newPass) !== false;
+                $ok2 = @file_put_contents($secretFile, $secret) !== false;
+                if ($ok1 && $ok2) {
+                    $flash = ['success', 'Password changed successfully'];
+                    panelLog('Control panel password changed');
+                } else {
+                    $flash = ['error', 'Failed to write password file'];
+                }
+            }
         } elseif ($action === 'disable_https') {
             $sslConf = NGINX_SITES_DIR . '/_ssl.conf';
             if (is_file($sslConf)) {
