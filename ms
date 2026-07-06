@@ -51,12 +51,15 @@ case "${1:-}" in
         echo "     Mobile Server Status"
         echo "========================================"
         echo ""
-        echo "Terminal:"
-        echo "  http://${IP}:7681"
+        echo "Terminal: http://${IP}:7681"
         echo ""
-        echo "Website:"
-        echo "  http://${IP}:8080"
+        echo "Website: http://${IP}:8080"
         echo ""
+        PASS_FILE="$HOME/server/.panel_password"
+        if [ -f "$PASS_FILE" ]; then
+            echo "Panel Password: $(cat "$PASS_FILE")"
+            echo ""
+        fi
         echo "Services:"
         for svc in nginx php-fpm ttyd; do
             if pgrep "$svc" >/dev/null 2>&1; then
@@ -70,12 +73,7 @@ case "${1:-}" in
         else
             printf "  %-10s  Stopped\n" "MariaDB"
         fi
-        PASS_FILE="$HOME/server/.panel_password"
-        if [ -f "$PASS_FILE" ]; then
-            echo "Panel Password:"
-            echo "  $(cat "$PASS_FILE")"
-            echo ""
-        fi
+        echo ""
         echo "========================================"
         ;;
     update)

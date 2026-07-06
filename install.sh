@@ -289,13 +289,10 @@ echo "========================================"
 echo "     Mobile Server Setup Complete!"
 echo "========================================"
 echo
-echo "Terminal:"
-echo "  http://${IP}:7681"
+echo "Terminal: http://${IP}:7681"
 echo
-echo "Website:"
-echo "  http://${IP}:8080"
+echo "Website: http://${IP}:8080"
 echo
-echo "Panel Password:"
-echo "  $CONTROL_PASS"
+echo "Panel Password: $CONTROL_PASS"
 echo
 echo "========================================"
