@@ -177,7 +177,7 @@ $art = [
 <div class="df g2" style="flex-wrap:wrap">
 <div class="sec" style="flex:1 1 calc(50% - 12px);min-width:280px">
   <div class="df jb ac fw g2 mb2">
-    <div class="st" style="margin-bottom:0">Tunnel</div>
+    <div class="st" style="margin-bottom:0">Cloudflared Tunnel</div>
   </div>
   <?php
   $cfTunnelsSys = cfTunnelsLoad();
