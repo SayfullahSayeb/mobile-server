@@ -118,9 +118,9 @@ body{background:var(--bg-body);font-family:-apple-system,BlinkMacSystemFont,'Seg
 .sc-n{font-size:16px;font-weight:600;color:var(--text)}
 .sc-ac{display:flex;gap:5px;margin-top:12px;flex-wrap:wrap}
 .ig{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:22px}
-.ii{background:var(--ii-bg);border:1px solid var(--ii-border);padding:14px;border-radius:var(--rs)}
-.ii .l{font-size:16px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
-.ii .v{font-size:16px;font-weight:600;margin-top:4px;word-break:break-all}
+.ii{background:var(--ii-bg);border:1px solid var(--ii-border);padding:12px 14px;border-radius:var(--rs);display:flex;align-items:center;gap:10px}
+.ii .l{font-size:16px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:600;white-space:nowrap}
+.ii .v{font-size:16px;font-weight:600;word-break:break-all}
 .bdg{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:16px;font-weight:600}
 .bdg.on{background:rgba(34,197,94,.14);color:var(--green)}
 .bdg.off{background:rgba(239,68,68,.14);color:var(--red)}
