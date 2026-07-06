@@ -111,7 +111,7 @@ case "${1:-}" in
         for f in "$TARGET_DIR"/* "$TARGET_DIR"/.[!.]*; do
             [ -e "$f" ] || continue
             b="$(basename "$f")"
-            [ "$b" = "." ] || [ "$b" = ".." ] || [ "$b" = ".git" ] && continue
+            [ "$b" = "." ] || [ "$b" = ".." ] || [ "$b" = ".git" ] || [ "$b" = "phpmyadmin" ] || [ "$b" = ".update_hash" ] && continue
             grep -qxF "$b" "$KEEP_FILE" 2>/dev/null && continue
             rm -rf "$f" 2>/dev/null
             printf "  \xE2\x9C\x97 Removed %s\n" "$b"

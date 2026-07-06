@@ -29,11 +29,7 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
 <div class="sb-overlay" onclick="toggleSidebar()"></div>
 <div class="sidebar" id="sidebar">
   <div class="sb-brand">
-    <div class="sb-logo"><img src="panel/favicon-32x32.png" alt="logo" style="width:22px;height:22px"></div>
-    <div>
-      <div class="sb-text">Mobile Server</div>
-      <div class="sb-sub">Control Panel</div>
-    </div>
+    <div class="sb-text">Mobile Server</div>
   </div>
   <div class="sb-nav">
     <a href="/dashboard" class="nav-i <?= $tab==='dashboard'?'act':'' ?>">
