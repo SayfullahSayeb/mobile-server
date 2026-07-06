@@ -33,25 +33,25 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
     </div>
   </div>
   <div class="sb-nav">
-    <a href="?tab=dashboard" class="nav-i <?= $tab==='dashboard'?'act':'' ?>">
+    <a href="/dashboard" class="nav-i <?= $tab==='dashboard'?'act':'' ?>">
       <span class="ni"><i class="fas fa-chart-bar"></i></span><span class="nl">Dashboard</span>
     </a>
-    <a href="?tab=sites" class="nav-i <?= $tab==='sites'?'act':'' ?>">
+    <a href="/sites" class="nav-i <?= $tab==='sites'?'act':'' ?>">
       <span class="ni"><i class="fas fa-globe"></i></span><span class="nl">Sites</span>
     </a>
-    <a href="?tab=terminal" class="nav-i <?= $tab==='terminal'?'act':'' ?>">
+    <a href="/terminal" class="nav-i <?= $tab==='terminal'?'act':'' ?>">
       <span class="ni"><i class="fas fa-terminal"></i></span><span class="nl">Terminal</span>
     </a>
-    <a href="?tab=logs" class="nav-i <?= $tab==='logs'?'act':'' ?>">
+    <a href="/logs" class="nav-i <?= $tab==='logs'?'act':'' ?>">
       <span class="ni"><i class="fas fa-list-alt"></i></span><span class="nl">Logs</span>
     </a>
-    <a href="?tab=files" class="nav-i <?= $tab==='files'?'act':'' ?>">
+    <a href="/files" class="nav-i <?= $tab==='files'?'act':'' ?>">
       <span class="ni"><i class="fas fa-folder"></i></span><span class="nl">File Manager</span>
     </a>
     <a href="/phpmyadmin" target="_blank" rel="noopener" class="nav-i">
       <span class="ni"><i class="fas fa-database"></i></span><span class="nl">phpMyAdmin</span>
     </a>
-    <a href="?tab=system" class="nav-i <?= $tab==='system'?'act':'' ?>">
+    <a href="/system" class="nav-i <?= $tab==='system'?'act':'' ?>">
       <span class="ni"><i class="fas fa-microchip"></i></span><span class="nl">System</span>
     </a>
   </div>
@@ -61,7 +61,7 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
     <div class="sb-ver">Mobile Server v1.0.89</div>
   </div>
 </div>
-<div class="main" style="display:flex;flex-direction:column;min-height:100vh">
+<div class="main">
   <div class="topbar" style="flex-shrink:0">
     <button class="hamburger" onclick="toggleSidebar()" aria-label="Toggle sidebar"><i class="fas fa-bars"></i></button>
     <div class="tbl">

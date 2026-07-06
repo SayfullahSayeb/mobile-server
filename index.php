@@ -503,7 +503,13 @@ if (isset($_GET['logout'])) {
     exit;
 }
 
-$tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? 'dashboard');
+// Parse tab from query string or URL path
+$tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? '');
+if (!$tab) {
+    $pathTab = trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
+    $tab = preg_replace('/[^a-z]/', '', $pathTab);
+}
+if (!$tab) $tab = 'dashboard';
 
 // Detect device IP via ifconfig
 $ip_addr = '';
@@ -1005,7 +1011,7 @@ if ($logged_in) {
             if (isset($flash)) {
                 $_SESSION['_flash'] = $flash;
             }
-            header('Location: ?tab=' . urlencode($tab));
+            header('Location: /' . urlencode($tab));
             exit;
         }
     }
