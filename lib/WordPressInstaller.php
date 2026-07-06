@@ -13,10 +13,9 @@ class WordPressInstaller {
 
     private array $serverConfig;
 
-    private bool $dirCreated    = false;
-    private bool $dbCreated     = false;
-    private bool $userCreated   = false;
-    private bool $configWritten = false;
+    private bool $dirCreated  = false;
+    private bool $dbCreated   = false;
+    private bool $userCreated = false;
 
     public function __construct(string $siteName, array $serverConfig = []) {
         $this->siteName     = $siteName;
@@ -57,21 +56,6 @@ class WordPressInstaller {
             $this->rollback();
             panelLog("[WordPress] {$this->siteName}: installation failed — " . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
-        }
-    }
-
-    public static function deleteWebsite(string $siteName, string $dbName = '', string $dbUser = ''): void {
-        if ($dbName && $dbUser) {
-            exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$dbName`") . " 2>/dev/null");
-            exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS '$dbUser'@'localhost'") . " 2>/dev/null");
-        } else {
-            $dbBase = str_replace('-', '_', $siteName);
-            exec("mariadb -e " . escapeshellarg("DROP DATABASE IF EXISTS `$dbBase`") . " 2>/dev/null");
-            exec("mariadb -e " . escapeshellarg("DROP USER IF EXISTS '$dbBase'@'localhost'") . " 2>/dev/null");
-        }
-        $siteDir = SITES_DIR . '/' . $siteName;
-        if (is_dir($siteDir)) {
-            exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
         }
     }
 
@@ -386,7 +370,6 @@ class WordPressInstaller {
         if (file_put_contents($this->publicHtml . '/wp-config.php', $config) === false) {
             throw new \RuntimeException('Failed to write wp-config.php.');
         }
-        $this->configWritten = true;
     }
 
     // ── Permissions ────────────────────────────────────────────────
@@ -411,7 +394,6 @@ class WordPressInstaller {
         if (file_put_contents($target, $block) === false) {
             throw new \RuntimeException('Failed to write nginx configuration.');
         }
-        $this->configWritten = true;
         rewriteNginxMainConfig();
     }
 

@@ -28,3 +28,4 @@ bash <(curl -fsSL https://sayfullahsayeb.github.io/mobile-server/install.sh)
 | `ms update` | Update system |
 
 Open `http://<device-ip>:8080` for the Control Panel.
+Open `http://<device-ip>:7681` for the Web Terminal (ttyd).
