@@ -218,6 +218,9 @@ if (isset($_GET['clear_logs'])) {
 // Cloudflared tunnel status poll endpoint
 if (isset($_GET['cf_tunnel_status'])) {
     header('Content-Type: application/json');
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    header('Pragma: no-cache');
+    header('Expires: 0');
     $site = preg_replace('/[^a-z0-9_-]/', '', $_GET['cf_tunnel_status']);
     if (!$site) {
         echo json_encode(['running' => false, 'url' => '']);
@@ -235,7 +238,7 @@ if (isset($_GET['cf_tunnel_status'])) {
         $running = $rc === 0;
     }
     $url = $t['url'] ?? '';
-    if (!$url && $running) {
+    if (!$url) {
         $logFile = cfTunnelLogFile($site);
         if (is_file($logFile)) {
             $content = file_get_contents($logFile);
@@ -246,8 +249,10 @@ if (isset($_GET['cf_tunnel_status'])) {
             }
         }
     }
-    if (!$running) {
+    if (!$running && !$url) {
         @unlink(cfTunnelLogFile($site));
+        unset($tunnels[$site]);
+        cfTunnelsSave($tunnels);
     }
     echo json_encode(['running' => $running, 'url' => $url]);
     exit;
@@ -584,7 +589,7 @@ if ($logged_in) {
                             } else {
                                 setProgress($name, 'Creating static site...', 10);
                                 @mkdir($publicHtml, 0755, true);
-                                file_put_contents($publicHtml . '/index.php', "<?php\necho '<h1>Welcome to " . htmlspecialchars($name, ENT_QUOTES) . "</h1>';\n");
+                                file_put_contents($publicHtml . '/index.html', "<h1>Welcome to " . htmlspecialchars($name, ENT_QUOTES) . "</h1>\n");
                                 file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
                                 rewriteNginxMainConfig();
                                 clearProgress($name);
@@ -889,29 +894,34 @@ if ($logged_in) {
             if (!$site) {
                 $flash = ['error', 'Invalid site name'];
             } else {
-                $tunnels = cfTunnelsLoad();
-                if (!empty($tunnels[$site]['pid'])) {
-                    exec("kill " . (int)$tunnels[$site]['pid'] . " 2>/dev/null");
-                }
-                $port = (int)($_POST['tunnel_port'] ?? 0);
-                if ($port <= 0) {
-                    $port = 8080;
-                    $config = getSitesConfig();
-                    if (isset($config[$site]['port']) && $config[$site]['port'] > 0) {
-                        $port = (int)$config[$site]['port'];
-                    }
-                }
-                $logFile = cfTunnelLogFile($site);
-                @unlink($logFile);
-                exec("cloudflared tunnel --url http://localhost:$port > " . escapeshellarg($logFile) . " 2>&1 & echo $!", $pout, $prc);
-                $pid = (int)($pout[0] ?? 0);
-                if ($pid > 0) {
-                    $tunnels[$site] = ['pid' => $pid, 'port' => $port, 'url' => '', 'started' => time()];
-                    cfTunnelsSave($tunnels);
-                    $flash = ['success', 'Cloudflare tunnel starting for ' . $site];
-                    panelLog("CF tunnel started for $site (PID $pid)");
+                exec("command -v cloudflared 2>/dev/null", $cfOut, $cfRc);
+                if ($cfRc !== 0) {
+                    $flash = ['error', 'Cloudflared is not installed. Run: pkg install cloudflared'];
                 } else {
-                    $flash = ['error', 'Failed to start cloudflared tunnel'];
+                    $tunnels = cfTunnelsLoad();
+                    if (!empty($tunnels[$site]['pid'])) {
+                        exec("kill " . (int)$tunnels[$site]['pid'] . " 2>/dev/null");
+                    }
+                    $port = (int)($_POST['tunnel_port'] ?? 0);
+                    if ($port <= 0) {
+                        $port = 8080;
+                        $config = getSitesConfig();
+                        if (isset($config[$site]['port']) && $config[$site]['port'] > 0) {
+                            $port = (int)$config[$site]['port'];
+                        }
+                    }
+                    $logFile = cfTunnelLogFile($site);
+                    @unlink($logFile);
+                    exec("cloudflared tunnel --url http://localhost:$port > " . escapeshellarg($logFile) . " 2>&1 & echo $!", $pout, $prc);
+                    $pid = (int)($pout[0] ?? 0);
+                    if ($pid > 0) {
+                        $tunnels[$site] = ['pid' => $pid, 'port' => $port, 'url' => '', 'started' => time()];
+                        cfTunnelsSave($tunnels);
+                        $flash = ['success', 'Cloudflare tunnel starting for ' . $site];
+                        panelLog("CF tunnel started for $site (PID $pid)");
+                    } else {
+                        $flash = ['error', 'Failed to start cloudflared tunnel'];
+                    }
                 }
             }
         } elseif ($action === 'cf_tunnel_stop') {

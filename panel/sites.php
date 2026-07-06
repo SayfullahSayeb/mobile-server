@@ -355,11 +355,16 @@ function submitDeleteForm(form) {
     fetch('?cf_tunnel_status=' + encodeURIComponent(site))
       .then(function(r) { return r.json(); })
       .then(function(d) {
-        if (d.url) {
+        if (d.running && d.url) {
           el.innerHTML = '<a href="' + d.url + '" target="_blank" style="color:var(--blue);font-size:12px;word-break:break-all;display:inline-block;max-width:180px">' + d.url + '</a>';
+          setTimeout(function() { pollCfTunnel(site, el, td); }, 15000);
         } else if (d.running) {
           el.innerHTML = '<span class="tm ts" style="color:var(--text3)"><i class="fas fa-spinner fa-pulse"></i> Starting...</span>';
           setTimeout(function() { pollCfTunnel(site, el, td); }, 3000);
+        } else if (d.url) {
+          el.innerHTML = '<span style="color:var(--orange);font-size:12px">' + d.url + '<br><span style="color:var(--red)">(stopped)</span></span>';
+          var stopForm = td.querySelector('form');
+          if (stopForm) stopForm.parentNode.innerHTML = '';
         } else {
           var stopForm = td.querySelector('form');
           if (stopForm) stopForm.parentNode.innerHTML = '';
