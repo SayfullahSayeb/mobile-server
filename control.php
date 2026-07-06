@@ -505,16 +505,25 @@ if (isset($_GET['logout'])) {
 
 $tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? 'dashboard');
 
-// Detect device IP — try common interface names
+// Detect device IP — scan all non-loopback interfaces
 $ip_addr = '';
-foreach (['wlan0','eth0','uap0','wlan1','rmnet0','cc0','rndis0','rmnet_data0'] as $iface) {
-    @exec("ip -4 -o addr show $iface 2>/dev/null | awk '{print $4}' | cut -d/ -f1", $ip_out, $ip_rc);
-    if ($ip_rc === 0 && !empty($ip_out[0])) { $ip_addr = $ip_out[0]; break; }
+@exec("ip -4 -o addr show 2>/dev/null | awk '{print $2,$4}'", $ip_out, $ip_rc);
+if ($ip_rc === 0) {
+    foreach ($ip_out ?? [] as $line) {
+        $parts = explode(' ', $line);
+        if (count($parts) < 2) continue;
+        $iface = $parts[0];
+        $addr = explode('/', $parts[1])[0];
+        if ($iface !== 'lo' && $addr !== '127.0.0.1' && filter_var($addr, FILTER_VALIDATE_IP)) {
+            $ip_addr = $addr;
+            break;
+        }
+    }
 }
 if (!$ip_addr) {
     $ip_addr = gethostbyname(gethostname());
 }
-if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP)) {
+if (!$ip_addr || !filter_var($ip_addr, FILTER_VALIDATE_IP) || $ip_addr === '127.0.0.1') {
     $ip_addr = 'localhost';
 }
 
