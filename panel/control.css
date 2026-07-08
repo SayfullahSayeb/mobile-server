@@ -206,6 +206,7 @@ body{background:var(--bg-body);font-family:-apple-system,BlinkMacSystemFont,'Seg
 .stbl tbody tr:hover{background:var(--hover-row)}
 .stbl tbody td{padding:10px 12px;vertical-align:middle}
 .stbl .td-name{font-weight:600;color:var(--text);white-space:nowrap}
+.stbl .td-dir{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stbl .sd{color:var(--blue);text-decoration:none;font-size:16px}
 .stbl .sd:hover{text-decoration:underline}
 .stbl .td-actions{display:flex;gap:4px;align-items:center;flex-wrap:nowrap}

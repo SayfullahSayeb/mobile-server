@@ -64,6 +64,7 @@ $cfTunnels = cfTunnelsLoad();
     <thead>
       <tr>
         <th>Name</th>
+        <th>Directory</th>
         <th>URL</th>
         <th>Type</th>
         <th>Tunnel</th>
@@ -75,6 +76,7 @@ $cfTunnels = cfTunnelsLoad();
       <?php foreach ($allSites as $name => $site): ?>
       <tr>
         <td class="td-name"><?= htmlspecialchars($name) ?></td>
+        <td class="td-dir"><a href="/filemanager/panel.php?p=<?= urlencode($name) ?>/public_html" target="_blank" class="sd" title="<?= htmlspecialchars($site['path']) ?>"><i class="fas fa-folder"></i> <?= htmlspecialchars($name) ?>/public_html</a></td>
         <td>
           <?php if (!empty($site['port'])): ?>
           <a href="http://<?= htmlspecialchars($ip_addr) ?>:<?= $site['port'] ?>" target="_blank" class="sd"><?= htmlspecialchars($ip_addr) ?>:<?= $site['port'] ?></a>
