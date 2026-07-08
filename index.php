@@ -533,7 +533,7 @@ $tab = preg_replace('/[^a-z]/', '', $_GET['tab'] ?? '');
 if (!$tab) {
     $pathTab = trim(parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH), '/');
     $pathTab = preg_replace('/[^a-z]/', '', $pathTab);
-    $validTabs = ['dashboard','sites','terminal','logs','files','system','update'];
+    $validTabs = ['dashboard','sites','terminal','logs','files','system','update','feedback'];
     if (in_array($pathTab, $validTabs, true)) $tab = $pathTab;
 }
 if (!$tab) $tab = 'dashboard';

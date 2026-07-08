@@ -53,6 +53,9 @@ function toggleTheme(){var h=document.documentElement;var n=h.getAttribute('data
     <a href="/system" class="nav-i <?= $tab==='system'?'act':'' ?>">
       <span class="ni"><i class="fas fa-microchip"></i></span><span class="nl">System</span>
     </a>
+    <a href="/feedback" class="nav-i <?= $tab==='feedback'?'act':'' ?>">
+      <span class="ni"><i class="fas fa-comment"></i></span><span class="nl">Feedback</span>
+    </a>
   </div>
   <div class="sb-foot">
     <a href="#" class="sb-logout" id="themeToggle" onclick="toggleTheme();return false"><i class="fas fa-moon"></i> <span id="themeLabel">Dark Mode</span></a>
