@@ -148,6 +148,23 @@ $cfTunnels = cfTunnelsLoad();
           <span>WordPress Site</span>
         </label>
       </div>
+      <div id="sourceSection">
+        <div class="st2" style="margin:6px 0 8px">Site Source</div>
+        <div class="df ac g3 mb1" id="siteSourceGroup">
+          <label class="rl" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.08);border-radius:var(--rs);transition:all .15s">
+            <input type="radio" name="site_source" value="empty" checked style="accent-color:var(--blue);width:15px;height:15px;cursor:pointer">
+            <span>Empty Directory</span>
+          </label>
+          <label class="rl" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;padding:6px 10px;background:rgba(15,23,42,.4);border:1px solid rgba(148,163,184,.08);border-radius:var(--rs);transition:all .15s">
+            <input type="radio" name="site_source" value="git" style="accent-color:var(--blue);width:15px;height:15px;cursor:pointer">
+            <span>Clone Git Repository</span>
+          </label>
+        </div>
+      </div>
+      <div id="gitRepoUrlGroup" style="display:none">
+        <div class="st2" style="margin:6px 0 8px">Git Repository URL</div>
+        <input type="url" name="git_repo_url" id="gitRepoUrl" class="inp" placeholder="e.g. https://github.com/user/repo.git">
+      </div>
       <div class="st2" style="margin:6px 0 8px">Site Name</div>
       <input type="text" name="site_name" id="siteName" class="inp" placeholder="e.g. myapp" required pattern="[a-z0-9_\-]+" title="Letters, numbers, hyphens, underscores only">
       <input type="hidden" name="site_domain" id="siteDomain" value="">
@@ -205,6 +222,10 @@ function closeModal() {
   document.getElementById('siteName').disabled = false;
   document.getElementById('siteNameOrig').value = '';
   document.querySelector('input[name="site_type"][value="static"]').checked = true;
+  document.querySelector('input[name="site_source"][value="empty"]').checked = true;
+  document.getElementById('gitRepoUrlGroup').style.display = 'none';
+  document.getElementById('gitRepoUrl').value = '';
+  document.getElementById('sourceSection').style.display = '';
 }
 function showDeleteModal(name) {
   document.getElementById('deleteSiteName').value = name;
@@ -218,6 +239,24 @@ function closeProgressModal() {
   document.getElementById('progressModal').classList.remove('show');
   document.getElementById('submitBtn').disabled = false;
 }
+
+// Toggle git repo URL field
+document.querySelectorAll('input[name="site_source"]').forEach(function(r) {
+  r.addEventListener('change', function() {
+    document.getElementById('gitRepoUrlGroup').style.display = this.value === 'git' ? '' : 'none';
+  });
+});
+
+// Toggle source section based on site type
+document.querySelectorAll('input[name="site_type"]').forEach(function(r) {
+  r.addEventListener('change', function() {
+    document.getElementById('sourceSection').style.display = this.value === 'static' ? '' : 'none';
+    if (this.value !== 'static') {
+      document.querySelector('input[name="site_source"][value="empty"]').checked = true;
+      document.getElementById('gitRepoUrlGroup').style.display = 'none';
+    }
+  });
+});
 function editSite(name, domain, type) {
   document.getElementById('formAction').value = 'edit_site';
   document.getElementById('modalTitle').textContent = 'Edit Site: ' + name;
@@ -227,6 +266,7 @@ function editSite(name, domain, type) {
   document.getElementById('siteDomain').value = domain === '' ? '' : domain;
   var radio = document.querySelector('input[name="site_type"][value="' + (type || 'static') + '"]');
   if (radio) radio.checked = true;
+  document.getElementById('sourceSection').style.display = 'none';
   document.getElementById('siteModal').classList.add('show');
 }
 function submitSiteForm(form) {
@@ -242,11 +282,13 @@ function submitSiteForm(form) {
   var pct = document.getElementById('progressPct');
 
   modal.classList.add('show');
+  var isGit = document.querySelector('input[name="site_source"]:checked') && document.querySelector('input[name="site_source"]:checked').value === 'git';
   var actionLabel = editMode ? 'Updating' : 'Creating';
-  document.getElementById('progressTitle').innerHTML = '<i class="fas fa-cog fa-spin"></i> ' + actionLabel + ' ' + (isWp ? 'WordPress' : 'Static') + ' Site...';
+  var typeLabel = isWp ? 'WordPress' : (isGit ? 'Static from Git' : 'Static');
+  document.getElementById('progressTitle').innerHTML = '<i class="fas fa-cog fa-spin"></i> ' + actionLabel + ' ' + typeLabel + ' Site...';
   document.getElementById('submitBtn').disabled = true;
 
-  status.textContent = editMode ? 'Saving...' : (isWp ? 'Preparing...' : 'Creating site...');
+  status.textContent = editMode ? 'Saving...' : (isWp ? 'Preparing...' : isGit ? 'Cloning repository...' : 'Creating site...');
 
   // Poll real progress from server (create only)
   var pollInterval = null;
@@ -270,7 +312,7 @@ function submitSiteForm(form) {
         }).catch(function() {});
     }, 1000);
   } else if (!editMode) {
-    // Static site (create only): animate a simple progress
+    // Static or git site (create only): animate a simple progress
     var anim = 10;
     pollInterval = setInterval(function() {
       if (anim < 90) {

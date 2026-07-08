@@ -624,12 +624,37 @@ if ($logged_in) {
                                 $installer = new WordPressInstaller($name, getServerConfig());
                                 $wpResult = $installer->createWebsite($domain, $port);
                             } else {
-                                setProgress($name, 'Creating static site...', 10);
-                                @mkdir($publicHtml, 0755, true);
-                                file_put_contents($publicHtml . '/index.html', "<h1>Welcome to " . htmlspecialchars($name, ENT_QUOTES) . "</h1>\n");
-                                file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
-                                rewriteNginxMainConfig();
-                                clearProgress($name);
+                                $siteSource = trim($_POST['site_source'] ?? 'empty');
+                                if ($siteSource === 'git') {
+                                    $gitUrl = trim($_POST['git_repo_url'] ?? '');
+                                    if (!$gitUrl) {
+                                        $flash = ['error', 'Git repository URL is required'];
+                                        exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
+                                    } elseif (!preg_match('#^(\w+://|git@)#', $gitUrl)) {
+                                        $flash = ['error', 'Invalid git repository URL'];
+                                        exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
+                                    } else {
+                                        setProgress($name, 'Cloning repository...', 15);
+                                        $cloneCmd = 'git clone ' . escapeshellarg($gitUrl) . ' ' . escapeshellarg($publicHtml) . ' 2>&1';
+                                        exec($cloneCmd, $cloneOut, $cloneRc);
+                                        if ($cloneRc !== 0) {
+                                            exec("rm -rf " . escapeshellarg($siteDir) . " 2>/dev/null");
+                                            $flash = ['error', 'Git clone failed. Check the repository URL and try again.'];
+                                        } else {
+                                            setProgress($name, 'Configuring nginx...', 80);
+                                            file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
+                                            rewriteNginxMainConfig();
+                                            clearProgress($name);
+                                        }
+                                    }
+                                } else {
+                                    setProgress($name, 'Creating static site...', 10);
+                                    @mkdir($publicHtml, 0755, true);
+                                    file_put_contents($publicHtml . '/index.html', "<h1>Welcome to " . htmlspecialchars($name, ENT_QUOTES) . "</h1>\n");
+                                    file_put_contents(NGINX_SITES_DIR . '/' . $name . '.conf', $block);
+                                    rewriteNginxMainConfig();
+                                    clearProgress($name);
+                                }
                             }
 
                             $config[$name] = [
